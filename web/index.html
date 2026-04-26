@@ -282,14 +282,14 @@ svg{display:block;flex-shrink:0}
       <label>Passphrase</label>
       <div class="pass-wrap">
         <input id="passphrase" type="password" autocomplete="off" spellcheck="false" placeholder="Enter your passphrase" />
-        <button class="pass-toggle" type="button" onclick="togglePassVis()" title="Show/hide">
+        <button class="pass-toggle" type="button" data-action="toggle-pass" title="Show/hide">
           <svg id="eye-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="15" height="15"><path d="M1 8C1 8 4 3.5 8 3.5s7 4.5 7 4.5-3 4.5-7 4.5S1 8 1 8z"/><circle cx="8" cy="8" r="2"/></svg>
         </button>
       </div>
     </div>
     <div class="err-msg" id="unlock-err"></div>
-    <button class="btn btn-primary" id="unlock-btn" onclick="doUnlock()">Unlock Vault</button>
-    <button class="forget-link" onclick="showPickCard()">Use a different vault</button>
+    <button class="btn btn-primary" id="unlock-btn" data-action="unlock">Unlock Vault</button>
+    <button class="forget-link" data-action="forget">Use a different vault</button>
   </div>
 
   <!-- No vault saved — pick or create (visible by default; JS replaces if vault found) -->
@@ -298,7 +298,7 @@ svg{display:block;flex-shrink:0}
       <div class="lock-card-title">Get started</div>
       <div class="lock-card-sub">Open an existing vault or create a new one.</div>
     </div>
-    <div class="vault-picker" id="pick-zone" onclick="pickVaultFile()">
+    <div class="vault-picker" id="pick-zone" data-action="pick-vault">
       <div class="vault-picker-icon">
         <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="22" height="22"><path d="M10 13V4"/><path d="M7 7l3-3 3 3"/><rect x="3" y="14" width="14" height="4" rx="1.5"/></svg>
       </div>
@@ -306,7 +306,7 @@ svg{display:block;flex-shrink:0}
       <div class="vault-picker-hint">Click to browse, or drag and drop</div>
     </div>
     <div class="or-divider">or</div>
-    <button class="btn btn-ghost" onclick="showCreateCard()" style="width:100%">
+    <button class="btn btn-ghost" data-action="show-create" style="width:100%">
       <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" width="13" height="13"><path d="M7 2v10M2 7h10"/></svg>
       Create a new vault
     </button>
@@ -329,8 +329,8 @@ svg{display:block;flex-shrink:0}
     </div>
     <div class="err-msg" id="create-err"></div>
     <div class="btn-row">
-      <button class="btn btn-ghost" onclick="showPickCard()" style="flex:1">← Back</button>
-      <button class="btn btn-primary" id="create-btn" onclick="doCreateVault()" style="flex:2">Create Vault</button>
+      <button class="btn btn-ghost" data-action="back-to-pick" style="flex:1">← Back</button>
+      <button class="btn btn-primary" id="create-btn" data-action="create-vault" style="flex:2">Create Vault</button>
     </div>
   </div>
 </div>
@@ -360,41 +360,41 @@ svg{display:block;flex-shrink:0}
   <div class="vault-body">
     <div class="sidebar">
       <div class="sidebar-section">Vault</div>
-      <div class="nav-item active" data-view="passwords" onclick="switchView('passwords')">
+      <div class="nav-item active" data-view="passwords">
         <span class="ni"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="15" height="15"><circle cx="5.5" cy="5.5" r="3.5"/><path d="M8 8.5 12.5 13"/><path d="M11 11.5l1.5-1.5"/></svg></span>
         Passwords <span class="nav-count" id="cnt-pw">0</span>
       </div>
-      <div class="nav-item" data-view="totp" onclick="switchView('totp')">
+      <div class="nav-item" data-view="totp">
         <span class="ni"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="15" height="15"><circle cx="8" cy="8" r="6.5"/><path d="M8 5v3l2 1.5"/></svg></span>
         Two-Factor <span class="nav-count" id="cnt-totp">0</span>
       </div>
-      <div class="nav-item" data-view="ssh" onclick="switchView('ssh')">
+      <div class="nav-item" data-view="ssh">
         <span class="ni"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="15" height="15"><rect x="1" y="2.5" width="14" height="11" rx="2"/><path d="M4 7l2.5 2L4 11"/><path d="M9.5 11h3"/></svg></span>
         SSH Keys <span class="nav-count" id="cnt-ssh">0</span>
       </div>
-      <div class="nav-item" data-view="notes" onclick="switchView('notes')">
+      <div class="nav-item" data-view="notes">
         <span class="ni"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="15" height="15"><path d="M10 1.5H4.5a1 1 0 00-1 1v11a1 1 0 001 1h7a1 1 0 001-1V4.5L10 1.5z"/><path d="M10 1.5v3h3"/><path d="M5.5 7.5h5M5.5 10h3.5"/></svg></span>
         Notes <span class="nav-count" id="cnt-notes">0</span>
       </div>
 
       <div class="sidebar-divider"></div>
       <div class="sidebar-section">Actions</div>
-      <div class="sidebar-action" onclick="exportToUSB()">
+      <div class="sidebar-action" data-action="export">
         <span class="ni"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="15" height="15"><path d="M8 3v9"/><path d="M5 9l3 3 3-3"/><path d="M3 13h10"/></svg></span>
         Export to USB
       </div>
-      <div class="sidebar-action" onclick="importVault()">
+      <div class="sidebar-action" data-action="import">
         <span class="ni"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="15" height="15"><path d="M8 12V3"/><path d="M5 6l3-3 3 3"/><path d="M3 13h10"/></svg></span>
         Import vault
       </div>
 
       <div class="sidebar-divider"></div>
       <div class="sidebar-section">Session</div>
-      <div class="sidebar-action" onclick="doLock()">
+      <div class="sidebar-action" data-action="lock">
         <span class="ni"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="15" height="15"><rect x="2.5" y="7" width="11" height="7.5" rx="1.5"/><path d="M5 7V5.5a3 3 0 016 0V7"/></svg></span>
         Lock vault
       </div>
-      <div class="sidebar-action danger" onclick="doLockClose()">
+      <div class="sidebar-action danger" data-action="lock-close">
         <span class="ni"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" width="15" height="15"><path d="M3 3l10 10M13 3L3 13"/></svg></span>
         Lock &amp; close
       </div>
@@ -406,9 +406,9 @@ svg{display:block;flex-shrink:0}
         <span class="content-count" id="view-count"></span>
         <div class="search-box" id="search-wrap">
           <span class="ni"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" width="14" height="14"><circle cx="6.5" cy="6.5" r="4"/><path d="M11 11l3 3"/></svg></span>
-          <input id="search" type="text" placeholder="Search…" oninput="onSearch()" />
+          <input id="search" type="text" placeholder="Search…" />
         </div>
-        <button class="add-btn" id="add-btn" onclick="openAddModal()">
+        <button class="add-btn" id="add-btn" data-action="add">
           <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" width="13" height="13"><path d="M7 2v10M2 7h10"/></svg>
           Add
         </button>
@@ -429,8 +429,8 @@ svg{display:block;flex-shrink:0}
     <div id="modal-fields"></div>
     <div class="err-msg" id="modal-err"></div>
     <div class="modal-footer">
-      <button class="btn btn-ghost btn-sm" onclick="closeModal()">Cancel</button>
-      <button class="btn btn-primary btn-sm" id="modal-save" onclick="saveEntry()">Save entry</button>
+      <button class="btn btn-ghost btn-sm" data-action="close-modal">Cancel</button>
+      <button class="btn btn-primary btn-sm" id="modal-save" data-action="save-entry">Save entry</button>
     </div>
   </div>
 </div>
@@ -446,8 +446,8 @@ svg{display:block;flex-shrink:0}
       <div class="modal-sub" id="confirm-sub">This action cannot be undone.</div>
     </div>
     <div class="modal-footer">
-      <button class="btn btn-ghost btn-sm" onclick="closeConfirm(false)">Cancel</button>
-      <button class="btn btn-danger btn-sm" onclick="closeConfirm(true)">Delete</button>
+      <button class="btn btn-ghost btn-sm" data-action="confirm-no">Cancel</button>
+      <button class="btn btn-danger btn-sm" data-action="confirm-yes">Delete</button>
     </div>
   </div>
 </div>
@@ -651,6 +651,42 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     } catch (_) {}
   })();
+
+  // Wire up search (oninput removed from HTML)
+  document.getElementById('search').addEventListener('input', onSearch);
+
+  // Single delegated click handler — replaces all inline onclick= attributes.
+  // Brave blocks inline event handlers on file:// via CSP; this works everywhere.
+  document.addEventListener('click', e => {
+    const el = e.target.closest('[data-action]');
+    if (el) {
+      switch (el.dataset.action) {
+        case 'toggle-pass':  togglePassVis(); break;
+        case 'unlock':       doUnlock(); break;
+        case 'forget':       showPickCard(); break;
+        case 'pick-vault':   pickVaultFile(); break;
+        case 'show-create':  showCreateCard(); break;
+        case 'back-to-pick': showPickCard(); break;
+        case 'create-vault': doCreateVault(); break;
+        case 'export':       exportToUSB(); break;
+        case 'import':       importVault(); break;
+        case 'lock':         doLock(); break;
+        case 'lock-close':   doLockClose(); break;
+        case 'add':          openAddModal(); break;
+        case 'close-modal':  closeModal(); break;
+        case 'save-entry':   saveEntry(); break;
+        case 'confirm-no':   closeConfirm(false); break;
+        case 'confirm-yes':  closeConfirm(true); break;
+      }
+      return;
+    }
+    const nav = e.target.closest('.nav-item[data-view]');
+    if (nav) { switchView(nav.dataset.view); return; }
+    const entry = e.target.closest('[data-select-idx]');
+    if (entry) { selectEntry(Number(entry.dataset.selectIdx)); return; }
+    const del = e.target.closest('[data-delete-type]');
+    if (del) { deleteEntry(del.dataset.deleteType, del.dataset.deleteId, Number(del.dataset.deleteIdx)); return; }
+  });
 
   function setupDragDrop() {
     const zone = document.getElementById('pick-zone');
@@ -909,7 +945,7 @@ function renderList() {
     else if (currentView==='notes'){ name=item.title; sub=fmtDate(item.modified); label=item.title; }
     const color = avatarColor(label);
     const letter = avatarLetter(label);
-    return `<div class="entry-item${i===selectedIdx?' selected':''}" onclick="selectEntry(${i})">
+    return `<div class="entry-item${i===selectedIdx?' selected':''}" data-select-idx="${i}">
       <div class="entry-avatar" style="background:${color}">${letter}</div>
       <div class="entry-text">
         <div class="entry-name">${esc(name)}</div>
@@ -951,7 +987,7 @@ function renderTotpGrid() {
           <div class="totp-card-name">${esc(t.issuer)}</div>
           <div class="totp-card-account">${esc(t.account)}</div>
         </div>
-        <button class="btn btn-danger btn-sm" style="padding:5px 7px" onclick="deleteEntry('totp','${t.id}',${i})">${IC.trash}</button>
+        <button class="btn btn-danger btn-sm" style="padding:5px 7px" data-delete-type="totp" data-delete-id="${t.id}" data-delete-idx="${i}">${IC.trash}</button>
       </div>
       <div class="totp-code" id="tc-${t.id}">--- ---</div>
       <div class="totp-bar"><div class="totp-fill" id="tf-${t.id}"></div></div>
@@ -1075,7 +1111,7 @@ function renderPwDetail(p, i) {
       <div style="font-size:13px;color:var(--text-2)">${fmtDate(p.created)}</div>
     </div>
     <div style="margin-top:4px">
-      <button class="btn btn-danger btn-sm" onclick="deleteEntry('passwords','${p.id}',${i})">${IC.trash} Delete entry</button>
+      <button class="btn btn-danger btn-sm" data-delete-type="passwords" data-delete-id="${p.id}" data-delete-idx="${i}">${IC.trash} Delete entry</button>
     </div>`;
 }
 
@@ -1100,7 +1136,7 @@ function renderSshDetail(k, i) {
       </div>
     </div>
     <div style="margin-top:8px">
-      <button class="btn btn-danger btn-sm" onclick="deleteEntry('ssh_keys','${k.id}',${i})">${IC.trash} Delete</button>
+      <button class="btn btn-danger btn-sm" data-delete-type="ssh_keys" data-delete-id="${k.id}" data-delete-idx="${i}">${IC.trash} Delete</button>
     </div>`;
 }
 
@@ -1125,7 +1161,7 @@ function renderNoteDetail(n, i) {
     </div>
     <div style="display:flex;gap:8px">
       <button class="copy-btn" data-copy="${ck}">${IC.copy} Copy note</button>
-      <button class="btn btn-danger btn-sm" onclick="deleteEntry('notes','${n.id}',${i})">${IC.trash} Delete</button>
+      <button class="btn btn-danger btn-sm" data-delete-type="notes" data-delete-id="${n.id}" data-delete-idx="${i}">${IC.trash} Delete</button>
     </div>`;
 }
 
