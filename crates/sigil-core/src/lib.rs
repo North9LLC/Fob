@@ -1,4 +1,5 @@
 pub mod aead;
+pub mod browser_vault;
 pub mod error;
 pub mod format;
 pub mod kdf;

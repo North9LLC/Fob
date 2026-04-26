@@ -24,6 +24,7 @@ sha2 = { version = "0.10" }
 blake3 = { version = "1" }
 hmac = { version = "0.12" }
 sha1 = { version = "0.10" }
+pbkdf2 = { version = "0.12" }
 ml-kem = { version = "0.3.0-rc.2" }
 
 # Secret handling

@@ -43,13 +43,15 @@ COSIGN_PUBLIC_KEY='-----BEGIN PUBLIC KEY-----
 TEMP_INSTALL=0
 MODIFY_PATH=1
 VERSION=""
+LOCAL_BIN=""
 
 for arg in "$@"; do
   case "$arg" in
-    --temp)      TEMP_INSTALL=1 ;;
-    --no-path)   MODIFY_PATH=0 ;;
-    --version=*) VERSION="${arg#*=}" ;;
-    *)           echo "Unknown flag: $arg" >&2; exit 1 ;;
+    --temp)       TEMP_INSTALL=1 ;;
+    --no-path)    MODIFY_PATH=0 ;;
+    --version=*)  VERSION="${arg#*=}" ;;
+    --local=*)    LOCAL_BIN="${arg#*=}" ;;
+    *)            echo "Unknown flag: $arg" >&2; exit 1 ;;
   esac
 done
 
@@ -149,13 +151,21 @@ EOF
 
 # ---------------------------------------------------------------------------
 # Version resolution — latest if not specified
+# Skipped entirely when --local is provided.
 # ---------------------------------------------------------------------------
 resolve_version() {
+  if [ -n "$LOCAL_BIN" ]; then
+    VERSION="local"
+    echo "  Version: local build" >&2
+    return
+  fi
+
   if [ -z "$VERSION" ]; then
     echo "  Fetching latest version..." >&2
     VERSION="$(curl -fsSL "$SIGIL_LATEST_URL" | grep '"tag_name"' | sed 's/.*"tag_name": *"\([^"]*\)".*/\1/')"
     if [ -z "$VERSION" ]; then
       echo "ERROR: Could not determine latest version." >&2
+      echo "       If you built from source, re-run with: --local=/path/to/sigil" >&2
       exit 1
     fi
   fi
@@ -164,8 +174,17 @@ resolve_version() {
 
 # ---------------------------------------------------------------------------
 # Download — artifact + signature + certificate
+# Skipped when --local is provided.
 # ---------------------------------------------------------------------------
 download_artifact() {
+  if [ -n "$LOCAL_BIN" ]; then
+    echo "  Using local binary: $LOCAL_BIN" >&2
+    TMPDIR="$(mktemp -d)"
+    trap 'rm -rf "$TMPDIR"' EXIT
+    cp "$LOCAL_BIN" "${TMPDIR}/sigil"
+    return
+  fi
+
   ARTIFACT="sigil-${VERSION}-${PLATFORM}.tar.gz"
   ARTIFACT_URL="${SIGIL_BASE_URL}/${VERSION}/${ARTIFACT}"
   SIG_URL="${ARTIFACT_URL}.sig"
@@ -182,8 +201,14 @@ download_artifact() {
 
 # ---------------------------------------------------------------------------
 # Signature verification — cosign
+# Skipped for local builds.
 # ---------------------------------------------------------------------------
 verify_signature() {
+  if [ -n "$LOCAL_BIN" ]; then
+    echo "  Local build — skipping signature verification." >&2
+    return
+  fi
+
   if ! command -v cosign >/dev/null 2>&1; then
     echo "  WARNING: cosign not found — skipping signature verification." >&2
     echo "           Install cosign (https://docs.sigstore.dev/cosign/installation/)" >&2
@@ -214,18 +239,23 @@ verify_signature() {
 # Installation
 # ---------------------------------------------------------------------------
 install_binary() {
-  echo "  Extracting..." >&2
-  tar -xzf "${TMPDIR}/${ARTIFACT}" -C "$TMPDIR"
+  if [ -n "$LOCAL_BIN" ]; then
+    SRC="${TMPDIR}/sigil"
+  else
+    echo "  Extracting..." >&2
+    tar -xzf "${TMPDIR}/${ARTIFACT}" -C "$TMPDIR"
+    SRC="${TMPDIR}/sigil"
+  fi
 
   if [ "$TEMP_INSTALL" = "1" ]; then
     SIGIL_BIN="$(mktemp -d)/sigil"
-    cp "${TMPDIR}/sigil" "$SIGIL_BIN"
+    cp "$SRC" "$SIGIL_BIN"
     echo "  Temporary install: $SIGIL_BIN" >&2
     # Schedule cleanup when shell exits.
     trap 'rm -f "$SIGIL_BIN"' EXIT
   else
     mkdir -p "$SIGIL_INSTALL_DIR"
-    cp "${TMPDIR}/sigil" "${SIGIL_INSTALL_DIR}/sigil"
+    cp "$SRC" "${SIGIL_INSTALL_DIR}/sigil"
     chmod 755 "${SIGIL_INSTALL_DIR}/sigil"
     SIGIL_BIN="${SIGIL_INSTALL_DIR}/sigil"
     echo "  Installed: $SIGIL_BIN" >&2
