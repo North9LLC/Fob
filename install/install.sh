@@ -26,7 +26,13 @@ for arg in "$@"; do
   case "$arg" in
     --version=*)  VERSION="${arg#*=}" ;;
     --no-path)    MODIFY_PATH=0 ;;
-    --local=*)    LOCAL_BIN="${arg#*=}" ;;
+    --local=*)
+      LOCAL_BIN="${arg#*=}"
+      # Expand ~ since shell doesn't expand it inside variable assignments
+      case "$LOCAL_BIN" in
+        "~/"*) LOCAL_BIN="${HOME}/${LOCAL_BIN#~/}" ;;
+      esac
+      ;;
     *)            printf 'Unknown flag: %s\n' "$arg" >&2; exit 1 ;;
   esac
 done
