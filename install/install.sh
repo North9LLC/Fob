@@ -41,10 +41,13 @@ list_usb_volumes() {
   case "$OS" in
     Darwin)
       # diskutil list external physical → /dev/diskN entries; mount → paths
-      diskutil list external physical 2>/dev/null | grep "^/dev/" | \
-      while IFS= read -r disk _rest; do
-        mount 2>/dev/null | grep "^${disk}" | sed 's/.* on //; s/ (.*//'
-      done
+      # awk extracts just the device path (strips " (external, physical):" suffix)
+      diskutil list external physical 2>/dev/null \
+        | grep "^/dev/" \
+        | awk '{print $1}' \
+        | while IFS= read -r disk; do
+            mount 2>/dev/null | grep "^${disk}" | sed 's/.* on //; s/ (.*//'
+          done
       ;;
     Linux)
       if command -v lsblk >/dev/null 2>&1; then
@@ -164,7 +167,13 @@ EOF
 
   if [ -z "$all_vols" ]; then
     say "No USB drives found."
-    say "Insert a USB drive and re-run this script."
+    say ""
+    say "Make sure your USB drive is plugged in and mounted, then re-run:"
+    say ""
+    say "  curl -fsSL https://raw.githubusercontent.com/North9LLC/NorthUSB/main/install/install.sh | sh"
+    say ""
+    say "If your drive is plugged in but not showing up, open Finder to"
+    say "make sure it's mounted, then try again."
     printf '\n'
     exit 0
   fi
