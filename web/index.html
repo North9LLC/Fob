@@ -372,6 +372,7 @@ svg { display:block; flex-shrink:0 }
       </svg>
     </div>
     <span class="topbar-title">Sigil</span>
+    <span style="font-size:11px;color:var(--text-3);font-family:var(--mono)" id="tb-version"></span>
     <div class="topbar-sep"></div>
     <span class="topbar-badge" id="tb-badge">
       <svg viewBox="0 0 8 8" width="6" height="6"><circle cx="4" cy="4" r="4" fill="currentColor"/></svg>
@@ -479,6 +480,8 @@ svg { display:block; flex-shrink:0 }
 
 <script>
 'use strict';
+
+const VERSION = '0.1.0';
 
 // ── SVG icon strings (used in dynamically generated HTML) ─────────────
 const IC = {
@@ -876,6 +879,12 @@ function enterVault() {
   const fp = vaultJSON.fingerprint || '';
   document.getElementById('tb-fp').textContent = fp ? `FP: ${fp}` : '';
   document.getElementById('tb-badge').className = 'topbar-badge';
+  document.getElementById('tb-version').textContent = `v${VERSION}`;
+  // Warn once per session if FSA is unavailable (saves won't be silent)
+  if (!('showSaveFilePicker' in window) && !sessionStorage.getItem('fsa-warned')) {
+    sessionStorage.setItem('fsa-warned', '1');
+    setTimeout(() => toast('Tip: use Chrome or Edge for automatic USB saves.', 'ok'), 800);
+  }
   startClock();
   resetLockTimer();
   switchView('passwords');

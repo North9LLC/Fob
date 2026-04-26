@@ -124,29 +124,14 @@ print_banner() {
 
   cat <<EOF
 
-  ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓
-  ▓                          ▓
-  ▓        S I G I L         ▓
-  ▓                          ▓
-  ▓     NORTHUSB VAULT        ▓
-  ▓     Install Script        ▓
-  ▓                          ▓
-  ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓
-
+  🛡️  Sigil — NorthUSB
+  ──────────────────────────────────────
   Platform:   $PLATFORM
   Install to: ${SIGIL_INSTALL_DIR}/sigil
   Script SHA: ${SCRIPT_SHA:-unavailable}
-
-  This script will:
-    1. Download the Sigil binary for your platform
-    2. Verify the release signature with cosign
-    3. Install to ${SIGIL_INSTALL_DIR}
-    4. Optionally update your PATH
-
-  Press Ctrl-C within 3 seconds to abort.
+  ──────────────────────────────────────
 
 EOF
-  sleep 3
 }
 
 # ---------------------------------------------------------------------------
@@ -213,8 +198,6 @@ verify_signature() {
     echo "  WARNING: cosign not found — skipping signature verification." >&2
     echo "           Install cosign (https://docs.sigstore.dev/cosign/installation/)" >&2
     echo "           to verify release authenticity." >&2
-    echo "  Continuing without verification in 5 seconds..." >&2
-    sleep 5
     return
   fi
 
@@ -309,20 +292,18 @@ main() {
 
   cat <<EOF
 
-  ────────────────────────────────────────────────
-  Sigil installed successfully.
+  ✓ Sigil installed: $SIGIL_BIN
 
-  Run:  $SIGIL_BIN init
-    to create your first encrypted vault.
+  Next steps:
+    sigil init       — create your first encrypted vault
+    sigil update     — check for updates at any time
 
-  Documentation:  https://github.com/North9LLC/NorthUSB#readme
-  Source code:    https://github.com/North9LLC/NorthUSB
-  ────────────────────────────────────────────────
+  Browser vault (no USB needed):
+    curl -fsSL https://raw.githubusercontent.com/North9LLC/NorthUSB/main/web/index.html -o sigil.html
+
+  Docs:  https://github.com/North9LLC/NorthUSB#readme
 
 EOF
-
-  # Hand off to the binary.
-  exec "$SIGIL_BIN" init
 }
 
 main "$@"
