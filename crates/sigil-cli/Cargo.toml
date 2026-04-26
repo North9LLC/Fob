@@ -1,0 +1,32 @@
+[package]
+name = "sigil-cli"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+default-run = "sigil"
+
+[[bin]]
+name = "sigil"
+path = "src/main.rs"
+
+[dependencies]
+sigil-core = { workspace = true }
+
+clap = { workspace = true }
+ratatui = { workspace = true }
+crossterm = { workspace = true }
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+serde = { workspace = true }
+uuid = { workspace = true }
+zeroize = { workspace = true }
+directories = { workspace = true }
+sysinfo = { workspace = true }
+arboard = { workspace = true }
+getrandom = { workspace = true }
+tokio = { workspace = true }
+blake3 = { workspace = true }
+hex = "0.4"
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
