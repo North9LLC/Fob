@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none';">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none';">
 <title>Sigil — Encrypted Vault</title>
 <style>
 :root {
@@ -624,25 +624,49 @@ function totpSecsLeft(p=30){ return p-(Math.floor(Date.now()/1000)%p); }
 
 // ── Startup ────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', async () => {
+  // 1. Check browser storage first
   const savedBytes = await _loadVaultBytes();
   if (savedBytes) {
     vaultFileData = savedBytes;
     showUnlockCard();
-  } else {
-    showPickCard();
+    return setupDragDrop();
   }
 
-  // Drag-drop on pick zone
-  const zone = document.getElementById('pick-zone');
-  zone.addEventListener('dragover',  e => { e.preventDefault(); zone.classList.add('drag-over'); });
-  zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
-  zone.addEventListener('drop', async e => {
-    e.preventDefault(); zone.classList.remove('drag-over');
-    const file = e.dataTransfer.files[0];
-    if (!file) return;
-    vaultFileData = new Uint8Array(await file.arrayBuffer());
-    showUnlockCard(file.name);
-  });
+  // 2. When opened from a USB drive, try to auto-load vault.sigil from the
+  //    same directory so the user doesn't have to manually pick it.
+  if (location.protocol === 'file:') {
+    try {
+      const vaultUrl = location.href.replace(/\/[^/?#]*$/, '/vault.sigil');
+      const resp = await fetch(vaultUrl);
+      if (resp.ok) {
+        const arr = new Uint8Array(await resp.arrayBuffer());
+        if (arr.length > 56) {
+          vaultFileData = arr;
+          await _saveVaultBytes(arr);
+          showUnlockCard('vault.sigil');
+          return setupDragDrop();
+        }
+      }
+    } catch (_) {}
+  }
+
+  // 3. Nothing found — let the user pick or create
+  showPickCard();
+
+  setupDragDrop();
+
+  function setupDragDrop() {
+    const zone = document.getElementById('pick-zone');
+    zone.addEventListener('dragover',  e => { e.preventDefault(); zone.classList.add('drag-over'); });
+    zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
+    zone.addEventListener('drop', async e => {
+      e.preventDefault(); zone.classList.remove('drag-over');
+      const file = e.dataTransfer.files[0];
+      if (!file) return;
+      vaultFileData = new Uint8Array(await file.arrayBuffer());
+      showUnlockCard(file.name);
+    });
+  }
 });
 
 // ── File pick ──────────────────────────────────────────────────────
@@ -701,24 +725,31 @@ async function writeVaultBack(newBytes) {
 }
 
 // ── UI transitions ─────────────────────────────────────────────────
+function _showCard(id) {
+  ['card-pick','card-unlock','card-create'].forEach(cid => {
+    const el = document.getElementById(cid);
+    if (cid === id) {
+      el.style.display = 'flex';
+      // Force animation to restart — needed when toggling display:none→flex
+      el.style.animation = 'none';
+      void el.offsetWidth;
+      el.style.animation = '';
+    } else {
+      el.style.display = 'none';
+    }
+  });
+}
 function showPickCard() {
-  document.getElementById('card-pick').style.display    = 'flex';
-  document.getElementById('card-unlock').style.display  = 'none';
-  document.getElementById('card-create').style.display  = 'none';
+  _showCard('card-pick');
 }
 function showUnlockCard(name) {
-  document.getElementById('card-pick').style.display    = 'none';
-  document.getElementById('card-create').style.display  = 'none';
-  document.getElementById('card-unlock').style.display  = 'flex';
+  _showCard('card-unlock');
   const hint = document.getElementById('unlock-vault-hint');
-  if (name) hint.textContent = name;
-  else      hint.textContent = 'Saved in browser';
+  hint.textContent = name || 'Saved in browser';
   setTimeout(() => document.getElementById('passphrase').focus(), 50);
 }
 function showCreateCard() {
-  document.getElementById('card-pick').style.display    = 'none';
-  document.getElementById('card-unlock').style.display  = 'none';
-  document.getElementById('card-create').style.display  = 'flex';
+  _showCard('card-create');
   setTimeout(() => document.getElementById('create-pass').focus(), 50);
 }
 
