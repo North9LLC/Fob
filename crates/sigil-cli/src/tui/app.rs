@@ -154,8 +154,13 @@ impl App {
                 }
             }
             KeyCode::Enter | KeyCode::Char(' ') => {
-                if self.state.devices.get(self.state.selected_device).is_some() {
-                    self.state.screen = Screen::SetupWizard(WizardStep::ConfirmWipe);
+                if let Some(dev) = self.state.devices.get(self.state.selected_device) {
+                    let next = if dev.has_sigil_vault {
+                        WizardStep::ExistingVault
+                    } else {
+                        WizardStep::ConfirmWipe
+                    };
+                    self.state.screen = Screen::SetupWizard(next);
                     self.state.wizard.field = 0;
                 }
             }
@@ -172,6 +177,24 @@ impl App {
 
     fn handle_wizard(&mut self, key: KeyCode, step: WizardStep) -> Result<bool> {
         match step {
+            WizardStep::ExistingVault => match key {
+                KeyCode::Char('u') | KeyCode::Char('U') => {
+                    self.state.update_mode = true;
+                    match self.run_vault_update() {
+                        Ok(()) => self.state.screen = Screen::Done,
+                        Err(e) => self.state.screen = Screen::Error(e.to_string()),
+                    }
+                }
+                KeyCode::Char('f') | KeyCode::Char('F') => {
+                    self.state.update_mode = false;
+                    self.state.screen = Screen::SetupWizard(WizardStep::ConfirmWipe);
+                }
+                KeyCode::Esc => {
+                    self.state.screen = Screen::DevicePicker;
+                }
+                _ => {}
+            },
+
             WizardStep::ConfirmWipe => match key {
                 KeyCode::Char('y') | KeyCode::Char('Y') => {
                     if let Some(dev) = self.state.devices.get(self.state.selected_device).cloned() {
@@ -268,6 +291,17 @@ impl App {
         self.state.wizard.main_pass.zeroize();
         self.state.wizard.main_pass_confirm.zeroize();
 
+        Ok(())
+    }
+
+    fn run_vault_update(&mut self) -> Result<()> {
+        let dev = self
+            .state
+            .devices
+            .get(self.state.selected_device)
+            .ok_or_else(|| anyhow::anyhow!("No device selected"))?
+            .clone();
+        crate::cli::write_web_ui(&dev.path)?;
         Ok(())
     }
 }

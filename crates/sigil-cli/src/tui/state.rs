@@ -12,6 +12,7 @@ pub enum Screen {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum WizardStep {
+    ExistingVault,
     ConfirmWipe,
     Master,
     Confirm,
@@ -25,6 +26,7 @@ pub struct AppState {
     pub wizard: WizardState,
     pub tick: u64,
     pub format_rx: Option<std::sync::mpsc::Receiver<anyhow::Result<()>>>,
+    pub update_mode: bool,
 }
 
 #[derive(Default)]
@@ -45,6 +47,7 @@ impl AppState {
             wizard: WizardState::default(),
             tick: 0,
             format_rx: None,
+            update_mode: false,
         }
     }
 }

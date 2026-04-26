@@ -36,7 +36,7 @@ pub fn render(frame: &mut Frame, state: &AppState) {
         Screen::DevicePicker      => render_device_picker(frame, state),
         Screen::Formatting        => render_formatting(frame, state),
         Screen::SetupWizard(step) => render_wizard(frame, state, step.clone()),
-        Screen::Done              => render_done(frame),
+        Screen::Done              => render_done(frame, state),
         Screen::Error(msg)        => render_error(frame, msg),
     }
 }
@@ -139,7 +139,7 @@ fn render_device_picker(frame: &mut Frame, state: &AppState) {
             };
 
             let vault_tag = if dev.has_sigil_vault {
-                Span::styled("  [vault exists — will overwrite]", muted())
+                Span::styled("  [vault present]", Style::default().fg(GOLD))
             } else {
                 Span::styled("  [new drive]", dim())
             };
@@ -232,10 +232,25 @@ fn render_wizard(frame: &mut Frame, state: &AppState, step: WizardStep) {
     let popup = centered_rect(62, 20, area);
     frame.render_widget(Clear, popup);
 
+    // ExistingVault is its own layout — no numbered steps / progress bar.
+    if step == WizardStep::ExistingVault {
+        frame.render_widget(
+            Block::default()
+                .title(Span::styled("  NorthUSB Detected  ", bold_blue()))
+                .borders(Borders::ALL)
+                .border_style(Style::default().fg(GOLD)),
+            popup,
+        );
+        let content = Rect::new(popup.x + 2, popup.y + 2, popup.width - 4, popup.height - 4);
+        render_step_existing_vault(frame, state, content);
+        return;
+    }
+
     let (step_n, step_total, title) = match &step {
-        WizardStep::ConfirmWipe => (1, 3, "Erase Drive"),
-        WizardStep::Master      => (2, 3, "Set Passphrase"),
-        WizardStep::Confirm     => (3, 3, "Confirm & Create"),
+        WizardStep::ExistingVault => unreachable!(),
+        WizardStep::ConfirmWipe   => (1, 3, "Erase Drive"),
+        WizardStep::Master        => (2, 3, "Set Passphrase"),
+        WizardStep::Confirm       => (3, 3, "Confirm & Create"),
     };
 
     let filled = (step_n * 16) / step_total;
@@ -268,10 +283,61 @@ fn render_wizard(frame: &mut Frame, state: &AppState, step: WizardStep) {
     let content = Rect::new(popup.x + 2, popup.y + 4, popup.width - 4, popup.height - 6);
 
     match step {
-        WizardStep::ConfirmWipe => render_step_wipe(frame, state, content),
-        WizardStep::Master      => render_step_master(frame, state, content),
-        WizardStep::Confirm     => render_step_confirm(frame, state, content),
+        WizardStep::ExistingVault => unreachable!(),
+        WizardStep::ConfirmWipe   => render_step_wipe(frame, state, content),
+        WizardStep::Master        => render_step_master(frame, state, content),
+        WizardStep::Confirm       => render_step_confirm(frame, state, content),
     }
+}
+
+fn render_step_existing_vault(frame: &mut Frame, state: &AppState, area: Rect) {
+    let dev_name = state
+        .devices
+        .get(state.selected_device)
+        .map(|d| format!("{}  ({})", d.name, d.size_display()))
+        .unwrap_or_else(|| "Unknown".into());
+
+    let chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([Constraint::Min(8), Constraint::Length(1)])
+        .split(area);
+
+    frame.render_widget(
+        Paragraph::new(vec![
+            Line::styled("A NorthUSB vault is already on this drive:", muted()),
+            Line::raw(""),
+            Line::from(vec![
+                Span::raw("  "),
+                Span::styled(&dev_name, bold_white()),
+            ]),
+            Line::raw(""),
+            Line::from(vec![
+                Span::styled("  u  ", bold_blue()),
+                Span::styled("Update", Style::default().fg(WHITE)),
+                Span::styled(
+                    "  — install the latest vault UI, keep your vault data",
+                    muted(),
+                ),
+            ]),
+            Line::raw(""),
+            Line::from(vec![
+                Span::styled("  f  ", bold_red()),
+                Span::styled("Fresh setup", Style::default().fg(WHITE)),
+                Span::styled("  — erase everything and start over", muted()),
+            ]),
+        ])
+        .wrap(Wrap { trim: true }),
+        chunks[0],
+    );
+
+    frame.render_widget(
+        Paragraph::new(Line::from(vec![
+            hint_span("u"), sep_span(" update  "),
+            hint_span("f"), sep_span(" fresh setup  "),
+            hint_span("Esc"), sep_span(" back"),
+        ])),
+        chunks[1],
+    );
 }
 
 fn render_step_wipe(frame: &mut Frame, state: &AppState, area: Rect) {
@@ -449,20 +515,23 @@ fn render_step_confirm(frame: &mut Frame, state: &AppState, area: Rect) {
 }
 
 // ── Done ──────────────────────────────────────────────────────────────────────
-fn render_done(frame: &mut Frame) {
+fn render_done(frame: &mut Frame, state: &AppState) {
     let area = frame.size();
     let popup = centered_rect(56, 14, area);
     frame.render_widget(Clear, popup);
 
+    let (headline, sub) = if state.update_mode {
+        ("  Vault UI updated.", "  Your vault data is untouched.")
+    } else {
+        ("  Vault created successfully.", "  Your USB drive is ready to use.")
+    };
+
     frame.render_widget(
         Paragraph::new(vec![
             Line::raw(""),
-            Line::from(vec![Span::styled("  Vault created successfully.", bold_blue())]),
+            Line::from(vec![Span::styled(headline, bold_blue())]),
             Line::raw(""),
-            Line::styled(
-                "  Your USB drive is ready to use.",
-                Style::default().fg(WHITE),
-            ),
+            Line::styled(sub, Style::default().fg(WHITE)),
             Line::raw(""),
             Line::styled("  Next steps:", muted()),
             Line::styled("    1.  Eject the USB drive safely.", muted()),
