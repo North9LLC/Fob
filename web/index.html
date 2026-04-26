@@ -590,19 +590,51 @@ async function pickVaultFile() {
 }
 
 async function writeVaultBack(newBytes) {
+  // Path 1: write directly back via existing file handle (silent, best path)
   if (vaultFileHandle) {
-    const writable = await vaultFileHandle.createWritable();
-    await writable.write(newBytes);
-    await writable.close();
-    vaultFileData = newBytes;
-  } else {
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(new Blob([newBytes]));
-    a.download = 'vault.sigil';
-    a.click();
-    vaultFileData = newBytes;
-    toast('Saved — replace vault.sigil on your USB with the downloaded file.', 'ok');
+    try {
+      const writable = await vaultFileHandle.createWritable();
+      await writable.write(newBytes);
+      await writable.close();
+      vaultFileData = newBytes;
+      return;
+    } catch(e) {
+      if (e.name === 'AbortError') return; // user denied write permission prompt
+      vaultFileHandle = null; // handle went stale, fall through
+    }
   }
+
+  // Path 2: no handle yet — show native Save dialog so user navigates to USB once;
+  // we remember the handle and future saves are silent (Path 1).
+  if ('showSaveFilePicker' in window) {
+    try {
+      const handle = await window.showSaveFilePicker({
+        suggestedName: 'vault.sigil',
+        types: [{ description: 'Sigil Vault', accept: { 'application/octet-stream': ['.sigil'] } }],
+      });
+      const writable = await handle.createWritable();
+      await writable.write(newBytes);
+      await writable.close();
+      vaultFileData   = newBytes;
+      vaultFileHandle = handle; // remember — next save is silent
+      toast('Saved. Future changes will save automatically.', 'ok');
+      return;
+    } catch(e) {
+      if (e.name === 'AbortError') { toast('Save cancelled.', 'err'); return; }
+      // unexpected error — fall through to download
+    }
+  }
+
+  // Path 3: browser has no File System Access API at all (Firefox, Safari) — download
+  const blob = new Blob([newBytes], { type: 'application/octet-stream' });
+  const url  = URL.createObjectURL(blob);
+  const a    = Object.assign(document.createElement('a'), { href: url, download: 'vault.sigil' });
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  vaultFileData = newBytes;
+  toast('Downloaded — move vault.sigil to your USB drive to replace the old one.', 'ok');
 }
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -611,10 +643,27 @@ document.addEventListener('DOMContentLoaded', () => {
   zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
   zone.addEventListener('drop', async e => {
     e.preventDefault(); zone.classList.remove('drag-over');
+
+    // Prefer getAsFileSystemHandle() so we get a writable handle from the drop
+    // (Chrome/Edge 86+). Falls back to plain File if unavailable.
+    const item = e.dataTransfer.items?.[0];
+    if (item && typeof item.getAsFileSystemHandle === 'function') {
+      try {
+        const handle = await item.getAsFileSystemHandle();
+        if (handle?.kind === 'file') {
+          vaultFileHandle = handle;
+          const file = await handle.getFile();
+          vaultFileData = new Uint8Array(await file.arrayBuffer());
+          showUnlockCard(file.name);
+          return;
+        }
+      } catch(_) { /* fall through to plain read */ }
+    }
+
     const file = e.dataTransfer.files[0];
     if (!file) return;
-    vaultFileData = new Uint8Array(await file.arrayBuffer());
-    vaultFileHandle = null;
+    vaultFileData   = new Uint8Array(await file.arrayBuffer());
+    vaultFileHandle = null; // no write handle; first save will show Save dialog
     showUnlockCard(file.name);
   });
 });
