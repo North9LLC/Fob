@@ -77,6 +77,8 @@ fn cmd_devices() -> Result<()> {
 /// Write the embedded web UI to the USB device path.
 pub fn write_web_ui(device_path: &std::path::Path) -> Result<()> {
     let dest = device_path.join("index.html");
+    #[cfg(target_os = "macos")]
+    { let _ = std::process::Command::new("chflags").args(["nouchg", &dest.to_string_lossy()]).status(); }
     std::fs::write(&dest, WEB_INDEX_HTML)?;
     #[cfg(target_os = "macos")]
     { let _ = std::process::Command::new("chflags").args(["uchg", &dest.to_string_lossy()]).status(); }
