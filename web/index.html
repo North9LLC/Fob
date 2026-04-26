@@ -73,7 +73,7 @@ svg{display:block;flex-shrink:0}
 .brand-name{font-size:22px;font-weight:700;letter-spacing:-.4px;background:linear-gradient(135deg,#dde4f0 0%,#8ba3d4 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
 .brand-tagline{font-size:13px;color:var(--text-2)}
 
-.lock-card{background:rgba(12,18,32,.9);border:1px solid var(--border);border-radius:var(--radius-lg);padding:28px 32px;width:390px;display:flex;flex-direction:column;gap:18px;box-shadow:0 8px 48px rgba(0,0,0,.55),inset 0 1px 0 rgba(255,255,255,.04);backdrop-filter:blur(20px);position:relative;z-index:1;animation:fadeInUp .45s .07s ease both}
+.lock-card{background:rgba(12,18,32,.9);border:1px solid var(--border);border-radius:var(--radius-lg);padding:28px 32px;width:390px;display:flex;flex-direction:column;gap:18px;box-shadow:0 8px 48px rgba(0,0,0,.55),inset 0 1px 0 rgba(255,255,255,.04);backdrop-filter:blur(20px);position:relative;z-index:1}
 .lock-card-title{font-size:16px;font-weight:600;letter-spacing:-.2px}
 .lock-card-sub{font-size:13px;color:var(--text-2);margin-top:2px;line-height:1.6}
 
@@ -727,16 +727,7 @@ async function writeVaultBack(newBytes) {
 // ── UI transitions ─────────────────────────────────────────────────
 function _showCard(id) {
   ['card-pick','card-unlock','card-create'].forEach(cid => {
-    const el = document.getElementById(cid);
-    if (cid === id) {
-      el.style.display = 'flex';
-      // Force animation to restart — needed when toggling display:none→flex
-      el.style.animation = 'none';
-      void el.offsetWidth;
-      el.style.animation = '';
-    } else {
-      el.style.display = 'none';
-    }
+    document.getElementById(cid).style.display = (cid === id) ? 'flex' : 'none';
   });
 }
 function showPickCard() {
