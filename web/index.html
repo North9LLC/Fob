@@ -292,8 +292,8 @@ svg{display:block;flex-shrink:0}
     <button class="forget-link" onclick="showPickCard()">Use a different vault</button>
   </div>
 
-  <!-- No vault saved — pick or create -->
-  <div class="lock-card" id="card-pick" style="display:none">
+  <!-- No vault saved — pick or create (visible by default; JS replaces if vault found) -->
+  <div class="lock-card" id="card-pick">
     <div>
       <div class="lock-card-title">Get started</div>
       <div class="lock-card-sub">Open an existing vault or create a new one.</div>
@@ -623,37 +623,34 @@ async function totp(secret, period=30, digits=6) {
 function totpSecsLeft(p=30){ return p-(Math.floor(Date.now()/1000)%p); }
 
 // ── Startup ────────────────────────────────────────────────────────
-document.addEventListener('DOMContentLoaded', async () => {
-  // 1. Check browser storage first
-  const savedBytes = await _loadVaultBytes();
-  if (savedBytes) {
-    vaultFileData = savedBytes;
-    showUnlockCard();
-    return setupDragDrop();
-  }
+document.addEventListener('DOMContentLoaded', () => {
+  // card-pick is visible by default in HTML; swap it out once we know what to show.
+  setupDragDrop();
 
-  // 2. When opened from a USB drive, try to auto-load vault.sigil from the
-  //    same directory so the user doesn't have to manually pick it.
-  if (location.protocol === 'file:') {
+  // Async: check IDB then try to auto-load vault.sigil from same dir (USB case).
+  // Runs after the pick card is already visible so nothing blocks the user.
+  (async () => {
     try {
-      const vaultUrl = location.href.replace(/\/[^/?#]*$/, '/vault.sigil');
-      const resp = await fetch(vaultUrl);
-      if (resp.ok) {
-        const arr = new Uint8Array(await resp.arrayBuffer());
-        if (arr.length > 56) {
-          vaultFileData = arr;
-          await _saveVaultBytes(arr);
-          showUnlockCard('vault.sigil');
-          return setupDragDrop();
+      const savedBytes = await _loadVaultBytes();
+      if (savedBytes) {
+        vaultFileData = savedBytes;
+        showUnlockCard();
+        return;
+      }
+      if (location.protocol === 'file:') {
+        const vaultUrl = location.href.replace(/\/[^/?#]*$/, '/vault.sigil');
+        const resp = await fetch(vaultUrl);
+        if (resp.ok) {
+          const arr = new Uint8Array(await resp.arrayBuffer());
+          if (arr.length > 56) {
+            vaultFileData = arr;
+            await _saveVaultBytes(arr);
+            showUnlockCard('vault.sigil');
+          }
         }
       }
     } catch (_) {}
-  }
-
-  // 3. Nothing found — let the user pick or create
-  showPickCard();
-
-  setupDragDrop();
+  })();
 
   function setupDragDrop() {
     const zone = document.getElementById('pick-zone');
