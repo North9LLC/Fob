@@ -4,8 +4,7 @@
 # curl -fsSL https://raw.githubusercontent.com/North9LLC/NorthUSB/main/install/install.sh | sh
 #
 # Downloads the sigil binary and runs the interactive TUI setup wizard.
-# The wizard guides you through selecting a USB drive, setting a passphrase,
-# and writing the encrypted vault + browser UI to the drive.
+# Falls back to building from source if no release is published yet.
 #
 # Flags:
 #   --version=vX.Y.Z   install a specific release (default: latest)
@@ -28,7 +27,6 @@ for arg in "$@"; do
     --no-path)    MODIFY_PATH=0 ;;
     --local=*)
       LOCAL_BIN="${arg#*=}"
-      # Expand ~ since shell doesn't expand it inside variable assignments
       case "$LOCAL_BIN" in
         "~/"*) LOCAL_BIN="${HOME}/${LOCAL_BIN#~/}" ;;
       esac
@@ -78,6 +76,16 @@ if [ -n "$LOCAL_BIN" ]; then
   [ -x "$LOCAL_BIN" ] || die "Local binary not found or not executable: $LOCAL_BIN"
   say "Using local build: $LOCAL_BIN"
   VERSION="local"
+elif [ -f "Cargo.toml" ] && [ -z "$VERSION" ]; then
+  # Running from inside the repo — build from source directly.
+  if ! command -v cargo >/dev/null 2>&1; then
+    die "cargo not found. Install Rust from https://rustup.rs and retry."
+  fi
+  say "Building from source..."
+  cargo build --release -p sigil-cli 2>&1 | tail -3
+  [ -f "target/release/sigil" ] || die "Build failed."
+  LOCAL_BIN="$(pwd)/target/release/sigil"
+  VERSION="local"
 elif [ -z "$VERSION" ]; then
   say "Fetching latest release..."
   VERSION="$(curl -fsSL --max-time 10 "$SIGIL_RELEASES_API" \
@@ -85,21 +93,15 @@ elif [ -z "$VERSION" ]; then
     | sed 's/.*"tag_name": *"\([^"]*\)".*/\1/')" || true
 
   if [ -z "$VERSION" ]; then
-    # If no releases yet, check for an already-installed binary and just run it.
-    if [ -x "${SIGIL_INSTALL_DIR}/sigil" ]; then
-      say "No release found. Launching installed sigil..."
-      printf '\n'
-      exec "${SIGIL_INSTALL_DIR}/sigil"
-    fi
-    die "No releases found yet. Build from source:
-       git clone https://github.com/North9LLC/NorthUSB.git
-       cd NorthUSB && cargo build --release -p sigil-cli
-       Then re-run with: --local=./target/release/sigil"
+    die "No release found and not in a source repo.
+  Clone the repo and re-run:
+    git clone https://github.com/North9LLC/NorthUSB.git
+    cd NorthUSB && sh install/install.sh"
   fi
   say "Version: $VERSION"
 fi
 
-# ── download ──────────────────────────────────────────────────────────────────
+# ── download / copy binary ────────────────────────────────────────────────────
 TMPDIR_WORK="$(mktemp -d)"
 trap 'rm -rf "$TMPDIR_WORK"' EXIT
 
@@ -119,7 +121,7 @@ else
     || die "Extraction failed."
 fi
 
-[ -f "${TMPDIR_WORK}/sigil" ] || die "Binary not found in archive."
+[ -f "${TMPDIR_WORK}/sigil" ] || die "Binary not found."
 chmod 755 "${TMPDIR_WORK}/sigil"
 
 # ── install ───────────────────────────────────────────────────────────────────
