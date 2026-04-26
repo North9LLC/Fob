@@ -1,9 +1,5 @@
-use sigil_core::{
-    types::{PasswordEntry, TotpEntry, SshKeyEntry, FileEntry, NoteEntry},
-    vault::{SlotKind, VaultBlob},
-};
+use sigil_core::vault::{SlotKind, VaultBlob};
 
-/// Top-level screen state machine.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Screen {
     Boot,
@@ -19,7 +15,9 @@ pub enum Screen {
 pub enum WizardStep {
     Master,
     Decoy,
+    DecoyPassphrase,
     Duress,
+    DuressPassphrase,
     Confirm,
 }
 
@@ -37,76 +35,92 @@ impl VaultView {
     pub fn label(&self) -> &'static str {
         match self {
             Self::Passwords => "PASSWORDS",
-            Self::Totp => "TOTP",
-            Self::SshKeys => "SSH",
-            Self::Files => "FILES",
-            Self::Notes => "NOTES",
+            Self::Totp     => "TOTP",
+            Self::SshKeys  => "SSH KEYS",
+            Self::Files    => "FILES",
+            Self::Notes    => "NOTES",
             Self::Settings => "SETTINGS",
+        }
+    }
+
+    pub fn icon(&self) -> &'static str {
+        match self {
+            Self::Passwords => "🔑",
+            Self::Totp      => "⏱",
+            Self::SshKeys   => "🔐",
+            Self::Files     => "📁",
+            Self::Notes     => "📝",
+            Self::Settings  => "⚙",
         }
     }
 
     pub fn next(&self) -> Self {
         match self {
             Self::Passwords => Self::Totp,
-            Self::Totp => Self::SshKeys,
-            Self::SshKeys => Self::Files,
-            Self::Files => Self::Notes,
-            Self::Notes => Self::Settings,
-            Self::Settings => Self::Passwords,
+            Self::Totp      => Self::SshKeys,
+            Self::SshKeys   => Self::Files,
+            Self::Files     => Self::Notes,
+            Self::Notes     => Self::Settings,
+            Self::Settings  => Self::Passwords,
         }
     }
 
     pub fn prev(&self) -> Self {
         match self {
             Self::Passwords => Self::Settings,
-            Self::Totp => Self::Passwords,
-            Self::SshKeys => Self::Totp,
-            Self::Files => Self::SshKeys,
-            Self::Notes => Self::Files,
-            Self::Settings => Self::Notes,
+            Self::Totp      => Self::Passwords,
+            Self::SshKeys   => Self::Totp,
+            Self::Files     => Self::SshKeys,
+            Self::Notes     => Self::Files,
+            Self::Settings  => Self::Notes,
         }
+    }
+
+    pub fn all() -> &'static [VaultView] {
+        &[
+            VaultView::Passwords,
+            VaultView::Totp,
+            VaultView::SshKeys,
+            VaultView::Files,
+            VaultView::Notes,
+            VaultView::Settings,
+        ]
     }
 }
 
-/// In-memory unlocked vault state.
 pub struct OpenVault {
     pub slot: SlotKind,
     pub blob: VaultBlob,
     pub vault_path: std::path::PathBuf,
-    /// Fingerprint: first 8 hex chars of BLAKE3(vault header salt).
     pub fingerprint: String,
-    /// Slot keys for re-encryption on save (must be zeroized on lock).
     pub slot_keys: [[u8; 32]; 4],
     pub last_activity: std::time::Instant,
 }
 
-/// Application state, threaded through all screens.
 pub struct AppState {
     pub screen: Screen,
-    /// Detected USB devices.
     pub devices: Vec<crate::device::UsbDevice>,
-    /// Selected device index in the device picker.
     pub selected_device: usize,
-    /// Passphrase input buffer (zeroized on navigation away).
     pub passphrase_input: String,
-    /// Open vault, if unlocked.
     pub vault: Option<OpenVault>,
-    /// Currently selected item index in the vault content pane.
     pub content_cursor: usize,
-    /// Whether the content pane has focus (vs sidebar).
     pub content_focus: bool,
-    /// Boot animation tick counter.
     pub boot_tick: u8,
-    /// Error message to display on the Error screen.
     pub error_message: String,
-    /// Which vault view is selected in sidebar.
     pub vault_view: VaultView,
-    /// Wizard fields.
     pub wizard: WizardState,
-    /// Clipboard auto-clear timestamp.
     pub clipboard_clear_at: Option<std::time::Instant>,
-    /// Auto-lock timeout in seconds.
     pub auto_lock_secs: u64,
+    /// Ticks remaining for the red-flash animation on failed unlock.
+    pub unlock_flash_ticks: u8,
+    /// Number of consecutive failed unlock attempts.
+    pub unlock_attempts: u8,
+    /// Whether the selected password is revealed in plaintext.
+    pub show_password: bool,
+    /// Live search query (activated with /).
+    pub search_query: Option<String>,
+    /// Global tick counter, drives TOTP refresh and animations.
+    pub tick: u64,
 }
 
 #[derive(Default)]
@@ -117,10 +131,9 @@ pub struct WizardState {
     pub duress_pass: String,
     pub decoy_enabled: bool,
     pub duress_enabled: bool,
-    /// Cursor position for currently active wizard input.
-    pub cursor: usize,
-    /// Which field is active within a wizard step.
     pub field: usize,
+    /// Mismatch flash for confirm field.
+    pub mismatch_flash: u8,
 }
 
 impl AppState {
@@ -139,18 +152,25 @@ impl AppState {
             wizard: WizardState::default(),
             clipboard_clear_at: None,
             auto_lock_secs: 15 * 60,
+            unlock_flash_ticks: 0,
+            unlock_attempts: 0,
+            show_password: false,
+            search_query: None,
+            tick: 0,
         }
     }
 
     pub fn transition(&mut self, next: Screen) {
-        // Zeroize passphrase when leaving auth screens.
+        use zeroize::Zeroize;
         match &self.screen {
             Screen::Unlock | Screen::SetupWizard(_) => {
-                use zeroize::Zeroize;
                 self.passphrase_input.zeroize();
             }
             _ => {}
         }
+        self.show_password = false;
+        self.search_query = None;
+        self.content_cursor = 0;
         self.screen = next;
     }
 
@@ -158,12 +178,11 @@ impl AppState {
         self.vault.is_some()
     }
 
-    /// Fingerprint display — first 4 bytes as hex with dash: "A3F2-9B84".
     pub fn vault_fingerprint(&self) -> String {
         self.vault
             .as_ref()
             .map(|v| v.fingerprint.clone())
-            .unwrap_or_else(|| "----".to_string())
+            .unwrap_or_else(|| "----·----·----·----".into())
     }
 
     pub fn touch_activity(&mut self) {
@@ -177,6 +196,18 @@ impl AppState {
             v.last_activity.elapsed().as_secs() >= self.auto_lock_secs
         } else {
             false
+        }
+    }
+
+    pub fn entry_count_for_view(&self, view: &VaultView) -> usize {
+        let Some(v) = &self.vault else { return 0 };
+        match view {
+            VaultView::Passwords => v.blob.passwords.len(),
+            VaultView::Totp      => v.blob.totps.len(),
+            VaultView::SshKeys   => v.blob.ssh_keys.len(),
+            VaultView::Files     => v.blob.files.len(),
+            VaultView::Notes     => v.blob.notes.len(),
+            VaultView::Settings  => 0,
         }
     }
 }

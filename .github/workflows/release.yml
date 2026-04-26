@@ -1,0 +1,139 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]+"
+
+env:
+  CARGO_TERM_COLOR: always
+  BINARY_NAME: sigil
+
+jobs:
+  build:
+    name: Build ${{ matrix.target }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-musl
+            runner: ubuntu-latest
+            cross: false
+            strip: true
+
+          - target: aarch64-unknown-linux-gnu
+            runner: ubuntu-latest
+            cross: true
+            strip: false
+
+          - target: armv7-unknown-linux-gnueabihf
+            runner: ubuntu-latest
+            cross: true
+            strip: false
+
+          - target: x86_64-apple-darwin
+            runner: macos-latest
+            cross: false
+            strip: true
+
+          - target: aarch64-apple-darwin
+            runner: macos-latest
+            cross: false
+            strip: true
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install musl tools (Linux x86_64)
+        if: matrix.target == 'x86_64-unknown-linux-musl'
+        run: sudo apt-get install -y musl-tools
+
+      - name: Install cross
+        if: matrix.cross
+        run: cargo install cross --git https://github.com/cross-rs/cross
+
+      - name: Cache Cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-${{ matrix.target }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-${{ matrix.target }}-cargo-
+
+      - name: Build (cross)
+        if: matrix.cross
+        run: cross build --release --target ${{ matrix.target }} -p sigil-cli
+
+      - name: Build (cargo)
+        if: "!matrix.cross"
+        run: cargo build --release --target ${{ matrix.target }} -p sigil-cli
+
+      - name: Strip binary (Linux/macOS)
+        if: matrix.strip
+        run: strip target/${{ matrix.target }}/release/${{ env.BINARY_NAME }}
+
+      - name: Package artifact
+        shell: bash
+        run: |
+          VERSION="${GITHUB_REF_NAME}"
+          ARTIFACT="${BINARY_NAME}-${VERSION}-${{ matrix.target }}.tar.gz"
+          cp target/${{ matrix.target }}/release/${{ env.BINARY_NAME }} .
+          tar czf "${ARTIFACT}" "${{ env.BINARY_NAME }}"
+          echo "ARTIFACT=${ARTIFACT}" >> "$GITHUB_ENV"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.ARTIFACT }}
+          path: ${{ env.ARTIFACT }}
+
+  sign-and-release:
+    name: Sign and publish release
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write  # for cosign keyless signing
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v3
+
+      - name: Sign artifacts with cosign (keyless)
+        run: |
+          for f in artifacts/*.tar.gz; do
+            cosign sign-blob --yes --bundle "${f}.bundle" "$f"
+          done
+
+      - name: Generate SHA256 checksums
+        run: |
+          cd artifacts
+          sha256sum *.tar.gz > SHA256SUMS
+          cd ..
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            artifacts/*.tar.gz
+            artifacts/*.bundle
+            artifacts/SHA256SUMS
+          generate_release_notes: true
+          draft: false
+          prerelease: ${{ contains(github.ref_name, '-') }}

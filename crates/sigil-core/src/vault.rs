@@ -300,19 +300,23 @@ fn unlock_vault_inner(
     let kdf_out = kdf::derive_master(passphrase, &vault_file.header.salt)?;
     let slot_keys = kdf::derive_all_slot_keys(kdf_out.master_secret());
 
-    // Check duress first — if it fires, wipe and return generic error immediately.
-    if vault_file.read_slot(SlotKind::Duress, &slot_keys[2]).is_ok() {
+    // Always attempt all three slots so timing does not reveal which slot matched.
+    let duress_ok = vault_file.read_slot(SlotKind::Duress, &slot_keys[2]).is_ok();
+    let main_result = vault_file.read_slot(SlotKind::Main, &slot_keys[0]);
+    let decoy_result = vault_file.read_slot(SlotKind::Decoy, &slot_keys[1]);
+
+    if duress_ok {
         if let Some(path) = duress_wipe_path {
             let _ = wipe_file(path, vault_bytes.len());
         }
         return Err(Error::Decrypt);
     }
 
-    // Check main and decoy.
-    for (slot, key_idx) in [(SlotKind::Main, 0usize), (SlotKind::Decoy, 1)] {
-        if let Ok(blob) = vault_file.read_slot(slot, &slot_keys[key_idx]) {
-            return Ok((slot, blob));
-        }
+    if let Ok(blob) = main_result {
+        return Ok((SlotKind::Main, blob));
+    }
+    if let Ok(blob) = decoy_result {
+        return Ok((SlotKind::Decoy, blob));
     }
 
     Err(Error::Decrypt)
@@ -327,7 +331,8 @@ fn wipe_file(path: &std::path::Path, size: usize) -> std::io::Result<()> {
     let mut written = 0;
     let mut chunk = vec![0u8; chunk_size.min(size)];
     while written < size {
-        getrandom::getrandom(&mut chunk).ok();
+        getrandom::getrandom(&mut chunk)
+            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))?;
         let to_write = chunk.len().min(size - written);
         f.write_all(&chunk[..to_write])?;
         written += to_write;
@@ -343,25 +348,26 @@ fn validate_passphrases(
     decoy: Option<&[u8]>,
     duress: Option<&[u8]>,
 ) -> Result<()> {
+    use subtle::ConstantTimeEq;
     if main.is_empty() {
         return Err(Error::InvalidArgument("main passphrase cannot be empty".into()));
     }
     if let Some(d) = decoy {
-        if d == main {
+        if d.ct_eq(main).into() {
             return Err(Error::InvalidArgument(
                 "decoy passphrase must differ from main".into(),
             ));
         }
     }
     if let Some(d) = duress {
-        if d == main {
+        if d.ct_eq(main).into() {
             return Err(Error::InvalidArgument(
                 "duress passphrase must differ from main".into(),
             ));
         }
     }
     if let (Some(dec), Some(dur)) = (decoy, duress) {
-        if dec == dur {
+        if dec.ct_eq(dur).into() {
             return Err(Error::InvalidArgument(
                 "decoy and duress passphrases must differ".into(),
             ));

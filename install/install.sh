@@ -28,8 +28,8 @@ set -eu
 # Configuration
 # ---------------------------------------------------------------------------
 SIGIL_INSTALL_DIR="${HOME}/.sigil/bin"
-SIGIL_BASE_URL="https://github.com/northusb/sigil/releases/download"
-SIGIL_LATEST_URL="https://api.github.com/repos/northusb/sigil/releases/latest"
+SIGIL_BASE_URL="https://github.com/North9LLC/NorthUSB/releases/download"
+SIGIL_LATEST_URL="https://api.github.com/repos/North9LLC/NorthUSB/releases/latest"
 
 # Cosign public key for release verification.
 # This key signs every release artifact. If it doesn't match, we refuse to install.
@@ -285,8 +285,8 @@ main() {
   Run:  $SIGIL_BIN init
     to create your first encrypted vault.
 
-  Documentation:  https://sigil.sh/docs
-  Source code:    https://github.com/northusb/sigil
+  Documentation:  https://github.com/North9LLC/NorthUSB#readme
+  Source code:    https://github.com/North9LLC/NorthUSB
   ────────────────────────────────────────────────
 
 EOF

@@ -309,7 +309,7 @@ impl App {
                 match key {
                     KeyCode::Char('y') | KeyCode::Char('Y') => {
                         self.state.wizard.decoy_enabled = true;
-                        self.state.transition(Screen::SetupWizard(WizardStep::Duress));
+                        self.state.transition(Screen::SetupWizard(WizardStep::DecoyPassphrase));
                     }
                     KeyCode::Char('n') | KeyCode::Char('N') => {
                         self.state.wizard.decoy_enabled = false;
@@ -321,18 +321,52 @@ impl App {
                     _ => {}
                 }
             }
+            WizardStep::DecoyPassphrase => {
+                handle_text_input(&mut self.state.wizard.decoy_pass, key);
+                match key {
+                    KeyCode::Enter if !self.state.wizard.decoy_pass.is_empty() => {
+                        self.state.transition(Screen::SetupWizard(WizardStep::Duress));
+                    }
+                    KeyCode::Esc => {
+                        use zeroize::Zeroize;
+                        self.state.wizard.decoy_pass.zeroize();
+                        self.state.wizard.decoy_enabled = false;
+                        self.state.transition(Screen::SetupWizard(WizardStep::Decoy));
+                    }
+                    _ => {}
+                }
+            }
             WizardStep::Duress => {
                 match key {
                     KeyCode::Char('y') | KeyCode::Char('Y') => {
                         self.state.wizard.duress_enabled = true;
-                        self.state.transition(Screen::SetupWizard(WizardStep::Confirm));
+                        self.state.transition(Screen::SetupWizard(WizardStep::DuressPassphrase));
                     }
                     KeyCode::Char('n') | KeyCode::Char('N') => {
                         self.state.wizard.duress_enabled = false;
                         self.state.transition(Screen::SetupWizard(WizardStep::Confirm));
                     }
                     KeyCode::Esc => {
-                        self.state.transition(Screen::SetupWizard(WizardStep::Decoy));
+                        if self.state.wizard.decoy_enabled {
+                            self.state.transition(Screen::SetupWizard(WizardStep::DecoyPassphrase));
+                        } else {
+                            self.state.transition(Screen::SetupWizard(WizardStep::Decoy));
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            WizardStep::DuressPassphrase => {
+                handle_text_input(&mut self.state.wizard.duress_pass, key);
+                match key {
+                    KeyCode::Enter if !self.state.wizard.duress_pass.is_empty() => {
+                        self.state.transition(Screen::SetupWizard(WizardStep::Confirm));
+                    }
+                    KeyCode::Esc => {
+                        use zeroize::Zeroize;
+                        self.state.wizard.duress_pass.zeroize();
+                        self.state.wizard.duress_enabled = false;
+                        self.state.transition(Screen::SetupWizard(WizardStep::Duress));
                     }
                     _ => {}
                 }
