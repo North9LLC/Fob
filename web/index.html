@@ -147,6 +147,22 @@ svg { display:block; flex-shrink:0 }
 .vault-picker-text { font-size:13.5px; font-weight:500; color:var(--text) }
 .vault-picker-hint { font-size:12px; color:var(--text-2) }
 
+.vault-found {
+  display:flex; align-items:center; gap:14px;
+  background:var(--surface2); border:1px solid var(--border);
+  border-radius:var(--radius); padding:14px 16px;
+}
+.vault-found-icon {
+  width:42px; height:42px; border-radius:11px; flex-shrink:0;
+  background:var(--blue-dim); border:1px solid rgba(59,126,255,.2);
+  display:flex; align-items:center; justify-content:center; color:var(--blue);
+}
+.vault-found-name { font-size:13.5px; font-weight:500; margin-bottom:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:220px }
+.vault-found-hint { font-size:12px; color:var(--text-2) }
+
+.forget-link { font-size:11.5px; color:var(--text-3); background:none; border:none; padding:0; cursor:pointer; text-align:center; text-decoration:underline; text-decoration-style:dotted }
+.forget-link:hover { color:var(--text-2) }
+
 .divider { border:none; border-top:1px solid var(--border) }
 
 .spinner { width:16px; height:16px; border:2px solid rgba(255,255,255,.3); border-top-color:#fff; border-radius:50%; animation:spin .7s linear infinite; flex-shrink:0 }
@@ -321,6 +337,29 @@ svg { display:block; flex-shrink:0 }
       <button class="btn btn-primary" id="unlock-btn" onclick="doUnlock()" style="flex:1">Unlock Vault</button>
     </div>
   </div>
+
+  <!-- Step 1b: remembered vault needs permission re-grant (user gesture required) -->
+  <div class="lock-card" id="card-reconnect" style="display:none">
+    <div>
+      <div class="lock-card-title">Welcome back</div>
+      <div class="lock-card-sub">Your vault was found — click below to reconnect.</div>
+    </div>
+    <div class="vault-found">
+      <div class="vault-found-icon">
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="20" height="20"><rect x="2" y="10" width="16" height="8" rx="1.5"/><path d="M6 10V7a4 4 0 018 0v3"/></svg>
+      </div>
+      <div style="overflow:hidden">
+        <div class="vault-found-name" id="reconnect-filename">vault.sigil</div>
+        <div class="vault-found-hint">Remembered vault · plug in your USB</div>
+      </div>
+    </div>
+    <div class="err-msg" id="reconnect-err"></div>
+    <button class="btn btn-primary" onclick="doReconnect()">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="15" height="15"><path d="M1 8a7 7 0 1014 0 7 7 0 00-14 0z"/><path d="M8 5v3l2 2"/></svg>
+      Connect to vault
+    </button>
+    <button class="forget-link" onclick="forgetVault()">Forget this vault</button>
+  </div>
 </div>
 
 <!-- ══ VAULT UI ═══════════════════════════════════════════════════════ -->
@@ -464,6 +503,109 @@ let selectedIdx     = -1;
 let searchQ         = '';
 let totpTimer       = null;
 
+// ── IndexedDB vault handle persistence ───────────────────────────────
+// Stores a FileSystemFileHandle across sessions so the user never has
+// to pick the file again (Chrome/Edge). The handle itself contains no
+// vault data — only a reference to the path on disk.
+const IDB_NAME  = 'sigil';
+const IDB_STORE = 'prefs';
+const IDB_KEY   = 'vaultHandle';
+let   _savedHandle = null; // handle loaded from IDB pending permission
+
+function _openDB() {
+  return new Promise((res, rej) => {
+    const req = indexedDB.open(IDB_NAME, 1);
+    req.onupgradeneeded = e => e.target.result.createObjectStore(IDB_STORE);
+    req.onsuccess = e => res(e.target.result);
+    req.onerror   = e => rej(e.target.error);
+  });
+}
+async function _saveHandle(handle) {
+  try {
+    const db = await _openDB();
+    const tx = db.transaction(IDB_STORE, 'readwrite');
+    tx.objectStore(IDB_STORE).put(handle, IDB_KEY);
+    await new Promise((r, j) => { tx.oncomplete = r; tx.onerror = j; });
+    db.close();
+  } catch(_) {}
+}
+async function _loadHandle() {
+  try {
+    const db = await _openDB();
+    const tx = db.transaction(IDB_STORE, 'readonly');
+    const h  = await new Promise((r, j) => {
+      const req = tx.objectStore(IDB_STORE).get(IDB_KEY);
+      req.onsuccess = () => r(req.result); req.onerror = () => j(req.error);
+    });
+    db.close(); return h;
+  } catch(_) { return null; }
+}
+async function _clearHandle() {
+  try {
+    const db = await _openDB();
+    const tx = db.transaction(IDB_STORE, 'readwrite');
+    tx.objectStore(IDB_STORE).delete(IDB_KEY);
+    db.close();
+  } catch(_) {}
+}
+
+async function tryAutoLoad() {
+  if (!('showOpenFilePicker' in window)) return; // FSA not supported — skip
+  const handle = await _loadHandle();
+  if (!handle) return;
+
+  const perm = await handle.queryPermission({ mode: 'readwrite' }).catch(() => 'denied');
+  if (perm === 'denied') { await _clearHandle(); return; }
+
+  _savedHandle = handle;
+
+  if (perm === 'granted') {
+    // Permission already live — read the file immediately
+    try {
+      const file = await handle.getFile();
+      vaultFileData   = new Uint8Array(await file.arrayBuffer());
+      vaultFileHandle = handle;
+      showUnlockCard(file.name);
+    } catch(_) {
+      // File unreadable (USB unplugged) — fall back to reconnect card
+      showReconnectCard(handle.name);
+    }
+  } else {
+    // 'prompt' — browser requires a user gesture before requestPermission
+    showReconnectCard(handle.name);
+  }
+}
+
+function showReconnectCard(filename) {
+  document.getElementById('card-pick').style.display      = 'none';
+  document.getElementById('card-unlock').style.display    = 'none';
+  document.getElementById('card-reconnect').style.display = 'flex';
+  document.getElementById('reconnect-filename').textContent = filename || 'vault.sigil';
+}
+
+async function doReconnect() {
+  const errEl = document.getElementById('reconnect-err');
+  errEl.textContent = '';
+  if (!_savedHandle) { showPickCard(); return; }
+  try {
+    const perm = await _savedHandle.requestPermission({ mode: 'readwrite' });
+    if (perm !== 'granted') { errEl.textContent = 'Permission denied — try again.'; return; }
+    const file = await _savedHandle.getFile();
+    vaultFileData   = new Uint8Array(await file.arrayBuffer());
+    vaultFileHandle = _savedHandle;
+    _savedHandle    = null;
+    showUnlockCard(file.name);
+  } catch(_) {
+    errEl.textContent = 'Could not read vault — is your USB drive plugged in?';
+  }
+}
+
+async function forgetVault() {
+  await _clearHandle();
+  _savedHandle = null;
+  showPickCard();
+}
+
 // Copy cache — avoids embedding sensitive values in inline onclick attrs
 const _dc = {};
 let   _dcn = 0;
@@ -575,6 +717,7 @@ async function pickVaultFile() {
       });
       const file = await vaultFileHandle.getFile();
       vaultFileData = new Uint8Array(await file.arrayBuffer());
+      await _saveHandle(vaultFileHandle); // remember for next session
     } else {
       const inp = document.createElement('input');
       inp.type = 'file'; inp.accept = '.sigil';
@@ -616,7 +759,8 @@ async function writeVaultBack(newBytes) {
       await writable.write(newBytes);
       await writable.close();
       vaultFileData   = newBytes;
-      vaultFileHandle = handle; // remember — next save is silent
+      vaultFileHandle = handle;
+      await _saveHandle(handle); // persist so next session auto-loads
       toast('Saved. Future changes will save automatically.', 'ok');
       return;
     } catch(e) {
@@ -638,6 +782,9 @@ async function writeVaultBack(newBytes) {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
+  // Try to auto-load vault from last known location before showing the picker
+  tryAutoLoad();
+
   const zone = document.getElementById('pick-zone');
   zone.addEventListener('dragover',  e => { e.preventDefault(); zone.classList.add('drag-over'); });
   zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
@@ -652,6 +799,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const handle = await item.getAsFileSystemHandle();
         if (handle?.kind === 'file') {
           vaultFileHandle = handle;
+          await _saveHandle(handle); // remember for next session
           const file = await handle.getFile();
           vaultFileData = new Uint8Array(await file.arrayBuffer());
           showUnlockCard(file.name);
@@ -670,9 +818,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // ── UI transitions ─────────────────────────────────────────────────────
 function showPickCard() {
-  document.getElementById('card-pick').style.display = 'flex';
-  document.getElementById('card-unlock').style.display = 'none';
+  _savedHandle = null;
+  document.getElementById('card-pick').style.display      = 'flex';
+  document.getElementById('card-unlock').style.display    = 'none';
+  document.getElementById('card-reconnect').style.display = 'none';
   document.getElementById('passphrase').value = '';
+  document.getElementById('pick-err').textContent = '';
 }
 function showUnlockCard(name) {
   document.getElementById('card-pick').style.display = 'none';
