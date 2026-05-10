@@ -1,61 +1,41 @@
 # Contributing to Fob
 
-Thanks for your interest in contributing! Fob is a security tool, so we hold contributions to a high standard of correctness and clarity.
+Thank you for your interest in contributing to Fob.
 
-## Getting Started
+## Getting started
 
-1. Fork the repository
-2. Clone your fork: `git clone https://github.com/YOURNAME/fob.git`
-3. Create a branch: `git checkout -b feature/your-feature`
-4. Make your changes
-5. Run the checks: `cargo fmt --all && cargo clippy --workspace --all-targets -- -D warnings && cargo test --workspace`
-6. Commit and push
-7. Open a pull request
-
-## Development Setup
-
-Requires **Rust 1.75+**.
+Requires Rust 1.75+.
 
 ```sh
-cargo build --workspace
-cargo test --workspace
+git clone https://github.com/North9LLC/Fob
+cd Fob
+cargo test --workspace --all-targets
+cargo clippy --all-targets -- -D warnings
 ```
 
-## Code Style
+## Guidelines
 
-- Run `cargo fmt` before committing
-- Run `cargo clippy` and resolve all warnings
-- Prefer explicit error handling over `unwrap()`/`expect()` in non-test code
-- All key material types must implement `Zeroize` and `ZeroizeOnDrop`
-- Use `subtle::ConstantTimeEq` for all secret comparisons — never `==` on bytes
-- Write tests for security-critical code (especially in `fob-core`)
-- Keep `fob-core` free of filesystem, network, and terminal I/O
+- Zero clippy warnings (`-D warnings`) required before merge — CI enforces this
+- All cryptographic changes must include tests in `fob-core`
+- `fob-core` must remain pure logic — no filesystem, no network, no I/O of any kind
+- Changes to the vault format (`src/format.rs`) are breaking changes — discuss in an issue first
+- The CLI, agent, and browser vault must not handle raw key material — passphrases go directly to `fob-core` and are zeroized immediately after use
 
-## Commit Messages
-
-Use clear, imperative commit messages:
+## Architecture rule
 
 ```
-Add Argon2id parameter validation
-Fix off-by-one in vault header parsing
-Update browser vault to use AES-256-GCM
+fob-core  ← no I/O, pure crypto logic, fully testable
+fob-cli   ← calls fob-core, owns TUI and USB device management
+fob-agent ← SSH agent + TOTP daemon, calls fob-core
+fob-stego ← steganographic cover formats, calls fob-core
 ```
 
-## Pull Request Process
+Do not add I/O to `fob-core`. Do not add cryptographic logic to `fob-cli`.
 
-1. Ensure CI passes (formatting, clippy, tests)
-2. Update relevant documentation if behavior changes
-3. For security-sensitive changes, expect more review time
-4. Squash fix-up commits before final review if requested
+## Security
 
-## Areas That Need Help
+For security vulnerabilities, open a [private advisory](https://github.com/North9LLC/Fob/security/advisories/new) — not a public issue. Do not disclose vulnerabilities publicly until a fix is available.
 
-- Cross-platform USB device detection improvements
-- Windows support and PowerShell installer
-- Browser vault accessibility (a11y) enhancements
-- Additional steganographic cover formats
-- Fuzzing corpus expansion
+## License
 
-## Code of Conduct
-
-Be respectful, constructive, and patient. Security code is hard — questions and challenges are welcome when they're in good faith.
+Fob is licensed under MIT OR Apache-2.0. By contributing, you agree your contributions will be licensed under the same terms.
