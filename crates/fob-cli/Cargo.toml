@@ -1,0 +1,33 @@
+[package]
+name = "fob-cli"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+description = "Command-line TUI and USB device manager for Fob"
+default-run = "fob"
+
+[[bin]]
+name = "fob"
+path = "src/main.rs"
+
+[dependencies]
+fob-core = { workspace = true }
+
+clap = { workspace = true }
+ratatui = { workspace = true }
+crossterm = { workspace = true }
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+serde = { workspace = true }
+uuid = { workspace = true }
+zeroize = { workspace = true }
+directories = { workspace = true }
+sysinfo = { workspace = true }
+arboard = { workspace = true }
+getrandom = { workspace = true }
+tokio = { workspace = true }
+blake3 = { workspace = true }
+hex = "0.4"
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"

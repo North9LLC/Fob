@@ -1,102 +1,101 @@
 <div align="center">
 
-# NorthUSB
+# Fob
 
-**Turn any USB drive into an encrypted vault.**
+**Your secrets, on your keychain.**
 
-Passwords · TOTP codes · SSH keys · Secure notes — all in a single encrypted file on your USB.
+An encrypted vault that lives on a USB drive — passwords, TOTP codes, SSH keys, and secure notes, protected by Argon2id and XChaCha20-Poly1305. Nothing installed on your computer.
+
+[![CI](https://github.com/North9LLC/Fob/actions/workflows/ci.yml/badge.svg)](https://github.com/North9LLC/Fob/actions/workflows/ci.yml)
+[![License](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg)](LICENSE-MIT)
+[![Rust 1.75+](https://img.shields.io/badge/rust-1.75+-orange.svg)](#building-from-source)
 
 </div>
 
 ---
 
-## Setup
-
-Plug in a USB drive, then run:
-
-```sh
-curl -fsSL https://raw.githubusercontent.com/North9LLC/NorthUSB/main/install/install.sh | sh
-```
-
-The script detects your USB drive and copies the vault UI to it. If it finds an existing NorthUSB vault, it offers to **update** (keep your data) or **wipe** (start fresh).
-
-That's it. Nothing is installed on your computer. Your vault lives on the USB.
+Fob turns any USB stick into a cryptographic security key. Plug it in, unlock with a passphrase, and your credentials are available as a password manager, TOTP generator, and SSH agent. Unplug and everything locks.
 
 ---
 
-## Usage
+## What's in the vault
 
-Open `index.html` from your USB drive in any browser. Create a vault with a passphrase, add your entries, and lock when done. Saves happen automatically — no dialogs.
-
-To update the vault UI on your USB later:
-
-```sh
-curl -fsSL https://raw.githubusercontent.com/North9LLC/NorthUSB/main/install/install.sh | sh
-```
-
-Run the same script. It detects the existing vault and offers the update option.
+- **Passwords** — store, generate, and auto-copy credentials
+- **TOTP** — built-in two-factor code generation with live countdown
+- **SSH keys** — unlocked keys exposed via a local Unix socket, compatible with any SSH client
+- **Secure notes** — encrypted free-text entries
+- **Plausible deniability** — decoy vault slot with realistic fake data; duress slot that destroys the vault silently
+- **Browser vault** — a zero-dependency HTML file that runs entirely offline, same encrypted format
 
 ---
 
-## Browser support
-
-The vault runs entirely client-side — no server, no network, no WASM. Works in any modern browser.
-
-| Browser | Auto-saves | Notes |
-|---|:---:|---|
-| Chrome / Edge 86+ | ✅ | |
-| Firefox | ✅ | |
-| Safari 15.4+ | ✅ | |
-| Brave | ✅ | |
-
-Vault data is stored in the browser's IndexedDB. Use **Export to USB** in the sidebar to write a `vault.sigil` file to your drive for backup or cross-browser use.
-
----
-
-## Security model
-
-### Vault format
-
-```
-vault.sigil
-├── Header (56 bytes): magic · version · iterations · salt · IV
-└── Body: AES-256-GCM ciphertext (WebCrypto)
-```
+## Security
 
 ### Cryptographic primitives
 
 | Component | Algorithm |
 |---|---|
-| Encryption | AES-256-GCM |
-| Key derivation | PBKDF2-HMAC-SHA256 — 310,000 iterations |
+| Key derivation | Argon2id — 256 MB memory, 4 iterations, 4 lanes |
+| Encryption (CLI) | XChaCha20-Poly1305 |
+| Encryption (browser) | AES-256-GCM via WebCrypto |
+| Key separation | HKDF-SHA256 |
+| Post-quantum (optional) | ML-KEM-1024 hybrid wrapping |
 | TOTP | RFC 6238 — HMAC-SHA1 |
 
-### Memory
+### Threat model
 
-- Passphrase is zero-filled from the typed `Uint8Array` on vault lock.
-- Clipboard is automatically cleared 30 seconds after any copy.
-- CSP blocks all outbound network requests (`connect-src 'none'`).
+| Threat | Mitigation |
+|---|---|
+| USB stolen | Argon2id makes brute-force economically infeasible |
+| Coercion | Decoy vault opens with realistic fake data |
+| Extreme coercion | Duress passphrase silently destroys the vault |
+| Quantum adversary | Optional ML-KEM-1024 hybrid key wrapping |
+| Clipboard exfil | Auto-clears 30 seconds after any copy |
+| Memory dumps | Sensitive buffers zeroized and mlocked where possible |
+
+### Architecture
+
+All cryptographic operations live in `fob-core`, which has no filesystem or network access. The CLI and browser vault cannot leak key material because they never handle raw secrets — passphrases are passed directly to the crypto layer and zeroized immediately after use.
 
 ---
 
-## Build from source
+## Building from source
 
 Requires Rust 1.75+.
 
 ```sh
-git clone https://github.com/North9LLC/NorthUSB.git
-cd NorthUSB
-cargo build --release -p sigil-cli
+git clone https://github.com/North9LLC/Fob.git
+cd Fob
+cargo build --release -p fob-cli
+```
+
+The binary lands at `target/release/fob`.
+
+---
+
+## Repository layout
+
+```
+fob/
+├── crates/
+│   ├── fob-core/       # cryptography and vault format — no I/O, pure logic
+│   ├── fob-cli/        # TUI + USB device management
+│   ├── fob-agent/      # SSH agent + TOTP daemon
+│   └── fob-stego/      # steganographic cover formats
+├── install/
+│   └── install.sh      # one-line installer
+└── web/
+    └── index.html      # zero-dependency browser vault
 ```
 
 ---
 
 ## Contributing
 
-Issues and pull requests welcome. For security vulnerabilities, open a [private advisory](https://github.com/North9LLC/NorthUSB/security/advisories/new).
+Issues and pull requests welcome. For security vulnerabilities, please open a [private advisory](https://github.com/North9LLC/Fob/security/advisories/new) rather than a public issue.
 
 ---
 
 ## License
 
-MIT OR Apache-2.0
+Licensed under either of [MIT](LICENSE-MIT) or [Apache 2.0](LICENSE-APACHE) at your option.
