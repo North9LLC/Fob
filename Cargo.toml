@@ -1,9 +1,9 @@
 [workspace]
 members = [
-    "crates/sigil-core",
-    "crates/sigil-cli",
-    "crates/sigil-agent",
-    "crates/sigil-stego",
+    "crates/fob-core",
+    "crates/fob-cli",
+    "crates/fob-agent",
+    "crates/fob-stego",
 ]
 resolver = "2"
 
@@ -62,7 +62,7 @@ directories = { version = "5" }
 sysinfo = { version = "0.30" }
 
 # Internal crates
-sigil-core = { path = "crates/sigil-core" }
+fob-core = { path = "crates/fob-core" }
 
 [profile.release]
 opt-level = 3
