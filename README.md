@@ -6,7 +6,7 @@
 
 An encrypted vault that lives on a USB drive — passwords, TOTP codes, SSH keys, and secure notes, protected by Argon2id and XChaCha20-Poly1305. Nothing installed on your computer.
 
-[![CI](https://github.com/North9LLC/Fob/actions/workflows/ci.yml/badge.svg)](https://github.com/North9LLC/Fob/actions/workflows/ci.yml)
+[![CI](https://github.com/North9-Labs/Fob/actions/workflows/ci.yml/badge.svg)](https://github.com/North9-Labs/Fob/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg)](LICENSE-MIT)
 [![Rust 1.75+](https://img.shields.io/badge/rust-1.75+-orange.svg)](#building-from-source)
 
@@ -64,7 +64,7 @@ All cryptographic operations live in `fob-core`, which has no filesystem or netw
 Requires Rust 1.75+.
 
 ```sh
-git clone https://github.com/North9LLC/Fob.git
+git clone https://github.com/North9-Labs/Fob.git
 cd Fob
 cargo build --release -p fob-cli
 ```
@@ -92,7 +92,7 @@ fob/
 
 ## Contributing
 
-Issues and pull requests welcome. For security vulnerabilities, please open a [private advisory](https://github.com/North9LLC/Fob/security/advisories/new) rather than a public issue.
+Issues and pull requests welcome. For security vulnerabilities, please open a [private advisory](https://github.com/North9-Labs/Fob/security/advisories/new) rather than a public issue.
 
 ---
 
