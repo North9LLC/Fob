@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use std::time::{SystemTime, UNIX_EPOCH};
 use zeroize::Zeroize;
 
@@ -6,13 +7,11 @@ use crate::{
     aead,
     error::{Error, Result},
     format::{
-        cell_offset, cell_size, VaultHeader, FORMAT_VERSION, HEADER_SIZE,
-        NUM_SLOTS,
+        cell_offset, cell_size, VaultHeader, DEFAULT_KDF_ITERATIONS, FORMAT_VERSION, HEADER_SIZE,
+        MAX_VAULT_SIZE, MIN_VAULT_SIZE,
     },
     kdf,
-    types::{
-        FileEntry, NoteEntry, PasswordEntry, SshKeyEntry, TotpEntry,
-    },
+    types::{NoteEntry, PasswordEntry, SshKeyEntry, TotpEntry},
 };
 
 /// Returns current Unix timestamp in seconds.
@@ -49,15 +48,25 @@ impl SlotKind {
 }
 
 /// The data payload stored inside a single encrypted vault slot.
+///
+/// Serialized as JSON (not CBOR) so the exact same bytes can be produced
+/// and parsed by the zero-dependency browser vault via WebCrypto/JSON —
+/// there is only one vault format, shared by the CLI and the browser.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct VaultBlob {
-    pub version: u64,
+    pub version: u32,
     pub created: u64,
+    #[serde(rename = "modified")]
     pub last_modified: u64,
+    #[serde(default)]
+    pub fingerprint: String,
+    #[serde(default)]
     pub passwords: Vec<PasswordEntry>,
+    #[serde(rename = "totp", default)]
     pub totps: Vec<TotpEntry>,
+    #[serde(default)]
     pub ssh_keys: Vec<SshKeyEntry>,
-    pub files: Vec<FileEntry>,
+    #[serde(default)]
     pub notes: Vec<NoteEntry>,
 }
 
@@ -68,10 +77,10 @@ impl VaultBlob {
             version: FORMAT_VERSION,
             created: now,
             last_modified: now,
+            fingerprint: String::new(),
             passwords: Vec::new(),
             totps: Vec::new(),
             ssh_keys: Vec::new(),
-            files: Vec::new(),
             notes: Vec::new(),
         }
     }
@@ -82,24 +91,27 @@ impl VaultBlob {
 
     /// Total number of entries across all categories.
     pub fn entry_count(&self) -> usize {
-        self.passwords.len()
-            + self.totps.len()
-            + self.ssh_keys.len()
-            + self.files.len()
-            + self.notes.len()
+        self.passwords.len() + self.totps.len() + self.ssh_keys.len() + self.notes.len()
     }
 
-    /// Serialize to CBOR bytes.
-    pub fn to_cbor(&self) -> Result<Vec<u8>> {
-        serde_cbor::to_vec(self).map_err(Error::from)
+    /// Serialize to JSON bytes.
+    pub fn to_json(&self) -> Result<Vec<u8>> {
+        serde_json::to_vec(self).map_err(Error::from)
     }
 
-    /// Deserialize from CBOR bytes.
-    pub fn from_cbor(data: &[u8]) -> Result<Self> {
-        serde_cbor::from_slice(data).map_err(Error::from)
+    /// Deserialize from JSON bytes.
+    pub fn from_json(data: &[u8]) -> Result<Self> {
+        serde_json::from_slice(data).map_err(Error::from)
     }
 }
 
+/// Short, non-secret display fingerprint for a vault file, derived from its
+/// header salt. Identical for every slot in the same file (the salt is
+/// shared) — purely a display aid, not a security boundary.
+pub fn vault_fingerprint(salt: &[u8; 32]) -> String {
+    let hash = Sha256::digest(salt);
+    hash[..8].iter().map(|b| format!("{b:02x}")).collect()
+}
 
 /// A vault file in memory: the raw bytes and parsed header.
 pub struct VaultFile {
@@ -110,27 +122,31 @@ pub struct VaultFile {
 impl VaultFile {
     /// Create a fresh vault file filled with random bytes.
     ///
-    /// The header is populated with new random salt and nonces.
-    /// All slot cells are random and indistinguishable from ciphertext.
-    pub fn create_fresh(vault_size: usize) -> Result<Self> {
-        if vault_size < HEADER_SIZE + NUM_SLOTS * 64 {
-            return Err(Error::Format("vault size too small".into()));
+    /// The header is populated with a new random salt. Each slot's AEAD
+    /// nonce is generated fresh at write time (see `write_slot`), not
+    /// stored in the header. All slot cells are random and indistinguishable
+    /// from ciphertext.
+    pub fn create_fresh(vault_size: usize, kdf_iterations: u32) -> Result<Self> {
+        if vault_size < MIN_VAULT_SIZE {
+            return Err(Error::Format(format!(
+                "vault size {vault_size} is below the minimum of {MIN_VAULT_SIZE}"
+            )));
+        }
+        if vault_size > MAX_VAULT_SIZE {
+            return Err(Error::Format(format!(
+                "vault size {vault_size} exceeds maximum of {MAX_VAULT_SIZE}"
+            )));
         }
 
         let mut data = vec![0u8; vault_size];
         getrandom::getrandom(&mut data).map_err(|_| Error::Encrypt)?;
 
-        let salt: [u8; 32] = data[0..32].try_into().unwrap();
-        let mut nonces = [[0u8; 24]; NUM_SLOTS];
-        for (i, nonce) in nonces.iter_mut().enumerate() {
-            let off = 32 + i * 24;
-            nonce.copy_from_slice(&data[off..off + 24]);
-        }
+        let salt: [u8; 32] = data[12..44].try_into().unwrap();
 
         let header = VaultHeader {
+            format_version: FORMAT_VERSION,
+            kdf_iterations,
             salt,
-            nonces,
-            format_version: 0,
         };
         let header_bytes = header.to_bytes();
         data[..HEADER_SIZE].copy_from_slice(&header_bytes);
@@ -140,6 +156,18 @@ impl VaultFile {
 
     /// Parse a vault file from existing bytes (e.g., read from USB).
     pub fn from_bytes(data: Vec<u8>) -> Result<Self> {
+        if data.len() < MIN_VAULT_SIZE {
+            return Err(Error::Format(format!(
+                "vault file size {} is below the minimum of {MIN_VAULT_SIZE} — likely truncated or corrupted",
+                data.len()
+            )));
+        }
+        if data.len() > MAX_VAULT_SIZE {
+            return Err(Error::Format(format!(
+                "vault file size {} exceeds maximum of {MAX_VAULT_SIZE}",
+                data.len()
+            )));
+        }
         let header = VaultHeader::parse(&data)?;
         Ok(Self { data, header })
     }
@@ -147,34 +175,42 @@ impl VaultFile {
     /// Write a VaultBlob into a specific slot, encrypting it with `slot_key`.
     ///
     /// Plaintext layout inside the cell (all within the encrypted region):
-    ///   [8 bytes]   CBOR length as u64 LE  (only readable with the correct key)
-    ///   [N bytes]   CBOR-encoded VaultBlob
-    ///   [remainder] random padding to fill cell_size - TAG_LEN bytes
+    ///   [8 bytes]   JSON length as u64 LE  (only readable with the correct key)
+    ///   [N bytes]   JSON-encoded VaultBlob
+    ///   [remainder] random padding to fill cell_size - NONCE_LEN - TAG_LEN bytes
     ///
-    /// The ciphertext is always exactly cell_size bytes, making all cells
-    /// indistinguishable in size. The length field is inside the ciphertext
-    /// so it leaks nothing to an adversary without the key.
-    pub fn write_slot(&mut self, slot: SlotKind, slot_key: &[u8; 32], blob: &VaultBlob) -> Result<()> {
-        let cbor = blob.to_cbor()?;
+    /// The stored cell is always exactly cell_size bytes (nonce || ciphertext
+    /// || tag), making all cells indistinguishable in size. The length field
+    /// is inside the ciphertext so it leaks nothing to an adversary without
+    /// the key. A fresh random nonce is generated on every call — nonces are
+    /// never reused across writes (see `format`'s module doc for why that
+    /// matters: v2 reused a fixed per-slot nonce from the header on every
+    /// save, an unconditional AES-GCM nonce-reuse break).
+    pub fn write_slot(
+        &mut self,
+        slot: SlotKind,
+        slot_key: &[u8; 32],
+        blob: &VaultBlob,
+    ) -> Result<()> {
+        let json = zeroize::Zeroizing::new(blob.to_json()?);
         let cell_sz = cell_size(self.data.len());
-        let plaintext_capacity = cell_sz.saturating_sub(aead::XCHACHA_TAG_LEN);
+        let plaintext_capacity = cell_sz.saturating_sub(aead::GCM_NONCE_LEN + aead::GCM_TAG_LEN);
         const LENGTH_PREFIX: usize = 8;
 
-        if cbor.len() + LENGTH_PREFIX > plaintext_capacity {
+        if json.len() + LENGTH_PREFIX > plaintext_capacity {
             return Err(Error::VaultFull);
         }
 
-        // Build padded plaintext: len_u64_le || cbor || random_padding.
-        let mut padded = vec![0u8; plaintext_capacity];
+        // Build padded plaintext: len_u64_le || json || random_padding.
+        let mut padded = zeroize::Zeroizing::new(vec![0u8; plaintext_capacity]);
         getrandom::getrandom(&mut padded).map_err(|_| Error::Encrypt)?;
-        padded[..LENGTH_PREFIX].copy_from_slice(&(cbor.len() as u64).to_le_bytes());
-        padded[LENGTH_PREFIX..LENGTH_PREFIX + cbor.len()].copy_from_slice(&cbor);
+        padded[..LENGTH_PREFIX].copy_from_slice(&(json.len() as u64).to_le_bytes());
+        padded[LENGTH_PREFIX..LENGTH_PREFIX + json.len()].copy_from_slice(&json);
 
-        let nonce = &self.header.nonces[slot.index()];
         let aad = &self.header.to_bytes();
-        let ciphertext = aead::encrypt_with_nonce(slot_key, nonce, &padded, aad)?;
+        let ciphertext = aead::encrypt(slot_key, &padded, aad)?;
 
-        // ciphertext is now exactly cell_sz bytes.
+        // ciphertext is now exactly cell_sz bytes (nonce + encrypted body + tag).
         let offset = cell_offset(self.data.len(), slot.index());
         self.data[offset..offset + cell_sz].copy_from_slice(&ciphertext);
 
@@ -187,23 +223,22 @@ impl VaultFile {
     pub fn read_slot(&self, slot: SlotKind, slot_key: &[u8; 32]) -> Result<VaultBlob> {
         let cell_sz = cell_size(self.data.len());
         let offset = cell_offset(self.data.len(), slot.index());
-        let nonce = &self.header.nonces[slot.index()];
         let aad = &self.header.to_bytes();
         let cell = &self.data[offset..offset + cell_sz];
 
-        let plaintext = aead::decrypt_with_nonce(slot_key, nonce, cell, aad)?;
+        let plaintext = zeroize::Zeroizing::new(aead::decrypt(slot_key, cell, aad)?);
 
         const LENGTH_PREFIX: usize = 8;
         if plaintext.len() < LENGTH_PREFIX {
             return Err(Error::Format("decrypted cell too small".into()));
         }
-        let cbor_len = u64::from_le_bytes(plaintext[..LENGTH_PREFIX].try_into().unwrap()) as usize;
-        let cbor_end = LENGTH_PREFIX + cbor_len;
-        if cbor_end > plaintext.len() {
-            return Err(Error::Format("CBOR length field exceeds plaintext".into()));
+        let json_len = u64::from_le_bytes(plaintext[..LENGTH_PREFIX].try_into().unwrap()) as usize;
+        let json_end = LENGTH_PREFIX + json_len;
+        if json_end > plaintext.len() {
+            return Err(Error::Format("JSON length field exceeds plaintext".into()));
         }
 
-        VaultBlob::from_cbor(&plaintext[LENGTH_PREFIX..cbor_end])
+        VaultBlob::from_json(&plaintext[LENGTH_PREFIX..json_end])
     }
 }
 
@@ -214,6 +249,23 @@ pub struct VaultInitParams {
     pub duress_passphrase: Option<Vec<u8>>,
     pub vault_size: usize,
     pub decoy_blob: Option<VaultBlob>,
+    /// PBKDF2 iteration count. Use `format::DEFAULT_KDF_ITERATIONS` unless
+    /// you have a specific reason to override it (e.g. fast tests).
+    pub kdf_iterations: u32,
+}
+
+impl VaultInitParams {
+    /// Convenience constructor using the default iteration count.
+    pub fn new(main_passphrase: Vec<u8>, vault_size: usize) -> Self {
+        Self {
+            main_passphrase,
+            decoy_passphrase: None,
+            duress_passphrase: None,
+            vault_size,
+            decoy_blob: None,
+            kdf_iterations: DEFAULT_KDF_ITERATIONS,
+        }
+    }
 }
 
 impl Drop for VaultInitParams {
@@ -238,29 +290,43 @@ pub fn init_vault(params: VaultInitParams) -> Result<Vec<u8>> {
         params.duress_passphrase.as_deref(),
     )?;
 
-    let mut vault_file = VaultFile::create_fresh(params.vault_size)?;
+    let mut vault_file = VaultFile::create_fresh(params.vault_size, params.kdf_iterations)?;
+    let fingerprint = vault_fingerprint(&vault_file.header.salt);
 
-    // Derive main slot key and write empty main vault.
-    let main_kdf = kdf::derive_master(&params.main_passphrase, &vault_file.header.salt)?;
+    // Derive main slot key and write the (empty) main vault.
+    let main_kdf = kdf::derive_master(
+        &params.main_passphrase,
+        &vault_file.header.salt,
+        params.kdf_iterations,
+    );
     let main_keys = kdf::derive_all_slot_keys(main_kdf.master_secret());
-    let main_blob = VaultBlob::new();
-    vault_file.write_slot(SlotKind::Main, &main_keys[0], &main_blob)?;
+    let mut main_blob = VaultBlob::new();
+    main_blob.fingerprint = fingerprint.clone();
+    vault_file.write_slot(SlotKind::Main, main_keys[0].bytes(), &main_blob)?;
 
     // Write decoy slot if passphrase provided.
     if let Some(decoy_pass) = &params.decoy_passphrase {
-        let decoy_kdf = kdf::derive_master(decoy_pass, &vault_file.header.salt)?;
+        let decoy_kdf =
+            kdf::derive_master(decoy_pass, &vault_file.header.salt, params.kdf_iterations);
         let decoy_keys = kdf::derive_all_slot_keys(decoy_kdf.master_secret());
-        let decoy_blob = params.decoy_blob.clone().unwrap_or_default();
-        vault_file.write_slot(SlotKind::Decoy, &decoy_keys[1], &decoy_blob)?;
+        // Fall back to a freshly-initialized (not zeroed-out) blob — a decoy
+        // with version:0/created:0 would be an obvious tell that it's a stub.
+        // NB: clippy's unwrap_or_default suggestion is wrong here — VaultBlob's
+        // derived Default gives all-zero fields, unlike VaultBlob::new().
+        #[allow(clippy::unwrap_or_default)]
+        let mut decoy_blob = params.decoy_blob.clone().unwrap_or_else(VaultBlob::new);
+        decoy_blob.fingerprint = fingerprint.clone();
+        vault_file.write_slot(SlotKind::Decoy, decoy_keys[1].bytes(), &decoy_blob)?;
     }
 
     // Write duress slot if passphrase provided.
     if let Some(duress_pass) = &params.duress_passphrase {
-        let duress_kdf = kdf::derive_master(duress_pass, &vault_file.header.salt)?;
+        let duress_kdf =
+            kdf::derive_master(duress_pass, &vault_file.header.salt, params.kdf_iterations);
         let duress_keys = kdf::derive_all_slot_keys(duress_kdf.master_secret());
         // Duress blob is deliberately empty — opening it triggers wipe.
         let duress_blob = VaultBlob::new();
-        vault_file.write_slot(SlotKind::Duress, &duress_keys[2], &duress_blob)?;
+        vault_file.write_slot(SlotKind::Duress, duress_keys[2].bytes(), &duress_blob)?;
     }
 
     Ok(vault_file.data)
@@ -292,13 +358,19 @@ fn unlock_vault_inner(
     duress_wipe_path: Option<&std::path::Path>,
 ) -> Result<(SlotKind, VaultBlob)> {
     let vault_file = VaultFile::from_bytes(vault_bytes.to_vec())?;
-    let kdf_out = kdf::derive_master(passphrase, &vault_file.header.salt)?;
+    let kdf_out = kdf::derive_master(
+        passphrase,
+        &vault_file.header.salt,
+        vault_file.header.kdf_iterations,
+    );
     let slot_keys = kdf::derive_all_slot_keys(kdf_out.master_secret());
 
     // Always attempt all three slots so timing does not reveal which slot matched.
-    let duress_ok = vault_file.read_slot(SlotKind::Duress, &slot_keys[2]).is_ok();
-    let main_result = vault_file.read_slot(SlotKind::Main, &slot_keys[0]);
-    let decoy_result = vault_file.read_slot(SlotKind::Decoy, &slot_keys[1]);
+    let duress_ok = vault_file
+        .read_slot(SlotKind::Duress, slot_keys[2].bytes())
+        .is_ok();
+    let main_result = vault_file.read_slot(SlotKind::Main, slot_keys[0].bytes());
+    let decoy_result = vault_file.read_slot(SlotKind::Decoy, slot_keys[1].bytes());
 
     if duress_ok {
         if let Some(path) = duress_wipe_path {
@@ -326,8 +398,7 @@ fn wipe_file(path: &std::path::Path, size: usize) -> std::io::Result<()> {
     let mut written = 0;
     let mut chunk = vec![0u8; chunk_size.min(size)];
     while written < size {
-        getrandom::getrandom(&mut chunk)
-            .map_err(|e| std::io::Error::other(e.to_string()))?;
+        getrandom::getrandom(&mut chunk).map_err(|e| std::io::Error::other(e.to_string()))?;
         let to_write = chunk.len().min(size - written);
         f.write_all(&chunk[..to_write])?;
         written += to_write;
@@ -338,14 +409,12 @@ fn wipe_file(path: &std::path::Path, size: usize) -> std::io::Result<()> {
     Ok(())
 }
 
-fn validate_passphrases(
-    main: &[u8],
-    decoy: Option<&[u8]>,
-    duress: Option<&[u8]>,
-) -> Result<()> {
+fn validate_passphrases(main: &[u8], decoy: Option<&[u8]>, duress: Option<&[u8]>) -> Result<()> {
     use subtle::ConstantTimeEq;
     if main.is_empty() {
-        return Err(Error::InvalidArgument("main passphrase cannot be empty".into()));
+        return Err(Error::InvalidArgument(
+            "main passphrase cannot be empty".into(),
+        ));
     }
     if let Some(d) = decoy {
         if d.ct_eq(main).into() {
@@ -375,8 +444,9 @@ fn validate_passphrases(
 mod tests {
     use super::*;
 
-    // Use a smaller vault for fast tests.
+    // Use a smaller vault, and a low iteration count, for fast tests.
     const TEST_VAULT_SIZE: usize = 512 * 1024; // 512 KiB
+    const TEST_ITERATIONS: u32 = 1000;
 
     fn simple_vault(main_pass: &[u8]) -> Vec<u8> {
         init_vault(VaultInitParams {
@@ -385,6 +455,7 @@ mod tests {
             duress_passphrase: None,
             vault_size: TEST_VAULT_SIZE,
             decoy_blob: None,
+            kdf_iterations: TEST_ITERATIONS,
         })
         .unwrap()
     }
@@ -395,6 +466,7 @@ mod tests {
         let (slot, blob) = unlock_vault(&vault, b"correct-horse-battery-staple").unwrap();
         assert_eq!(slot, SlotKind::Main);
         assert_eq!(blob.version, FORMAT_VERSION);
+        assert!(!blob.fingerprint.is_empty());
     }
 
     #[test]
@@ -421,6 +493,7 @@ mod tests {
             duress_passphrase: None,
             vault_size: TEST_VAULT_SIZE,
             decoy_blob: Some(decoy_blob),
+            kdf_iterations: TEST_ITERATIONS,
         })
         .unwrap();
 
@@ -445,34 +518,64 @@ mod tests {
             duress_passphrase: None,
             vault_size: TEST_VAULT_SIZE,
             decoy_blob: None,
+            kdf_iterations: TEST_ITERATIONS,
         })
         .unwrap();
 
         // Main key should not open decoy slot.
         let vault_file = VaultFile::from_bytes(vault.clone()).unwrap();
-        let main_kdf = kdf::derive_master(main_pass, &vault_file.header.salt).unwrap();
+        let main_kdf = kdf::derive_master(main_pass, &vault_file.header.salt, TEST_ITERATIONS);
         let main_keys = kdf::derive_all_slot_keys(main_kdf.master_secret());
-        assert!(vault_file.read_slot(SlotKind::Decoy, &main_keys[1]).is_err());
+        assert!(vault_file
+            .read_slot(SlotKind::Decoy, main_keys[1].bytes())
+            .is_err());
 
         // Decoy key should not open main slot.
-        let decoy_kdf = kdf::derive_master(decoy_pass, &vault_file.header.salt).unwrap();
+        let decoy_kdf = kdf::derive_master(decoy_pass, &vault_file.header.salt, TEST_ITERATIONS);
         let decoy_keys = kdf::derive_all_slot_keys(decoy_kdf.master_secret());
-        assert!(vault_file.read_slot(SlotKind::Main, &decoy_keys[0]).is_err());
+        assert!(vault_file
+            .read_slot(SlotKind::Main, decoy_keys[0].bytes())
+            .is_err());
     }
 
     #[test]
-    fn vault_blob_roundtrip_cbor() {
+    fn vault_blob_roundtrip_json() {
         let mut blob = VaultBlob::new();
-        blob.passwords.push(PasswordEntry::new("Test", "user", "pw"));
+        blob.passwords
+            .push(PasswordEntry::new("Test", "user", "pw"));
         blob.notes.push(NoteEntry::new("Note", "body text"));
 
-        let cbor = blob.to_cbor().unwrap();
-        let parsed = VaultBlob::from_cbor(&cbor).unwrap();
+        let json = blob.to_json().unwrap();
+        let parsed = VaultBlob::from_json(&json).unwrap();
 
         assert_eq!(parsed.passwords.len(), 1);
         assert_eq!(parsed.passwords[0].name, "Test");
         assert_eq!(parsed.notes.len(), 1);
         assert_eq!(parsed.notes[0].title, "Note");
+    }
+
+    #[test]
+    fn vault_blob_json_uses_browser_field_names() {
+        let mut blob = VaultBlob::new();
+        blob.last_modified = 42;
+        let json = blob.to_json().unwrap();
+        let value: serde_json::Value = serde_json::from_slice(&json).unwrap();
+        assert_eq!(value["modified"], 42);
+        assert!(value.get("totp").is_some());
+        assert!(value.get("last_modified").is_none());
+        assert!(value.get("totps").is_none());
+        // `files` (FileEntry) and password `tags`/`history` were removed as
+        // dead schema surface — never populated or read by either interface.
+        // Locking this in so they don't silently creep back in.
+        assert!(value.get("files").is_none());
+    }
+
+    #[test]
+    fn password_entry_json_has_no_dead_tags_or_history_fields() {
+        let entry = PasswordEntry::new("Test", "user", "pw");
+        let json = serde_json::to_value(&entry).unwrap();
+        assert!(json.get("tags").is_none());
+        assert!(json.get("history").is_none());
     }
 
     #[test]
@@ -499,6 +602,7 @@ mod tests {
             duress_passphrase: None,
             vault_size: TEST_VAULT_SIZE,
             decoy_blob: None,
+            kdf_iterations: TEST_ITERATIONS,
         });
         assert!(result.is_err());
     }
@@ -515,23 +619,81 @@ mod tests {
             duress_passphrase: None,
             vault_size,
             decoy_blob: None,
+            kdf_iterations: TEST_ITERATIONS,
         })
         .unwrap();
 
         // Unlock, add an entry, re-lock (re-write).
         let (slot, mut blob) = unlock_vault(&vault_bytes, pass).unwrap();
-        blob.passwords.push(PasswordEntry::new("GitHub", "alice", "gh-secret"));
+        blob.passwords
+            .push(PasswordEntry::new("GitHub", "alice", "gh-secret"));
         blob.touch();
 
         let mut vault_file = VaultFile::from_bytes(vault_bytes).unwrap();
-        let kdf_out = kdf::derive_master(pass, &vault_file.header.salt).unwrap();
+        let kdf_out = kdf::derive_master(pass, &vault_file.header.salt, TEST_ITERATIONS);
         let slot_keys = kdf::derive_all_slot_keys(kdf_out.master_secret());
-        vault_file.write_slot(slot, &slot_keys[slot.index()], &blob).unwrap();
+        vault_file
+            .write_slot(slot, slot_keys[slot.index()].bytes(), &blob)
+            .unwrap();
 
         // Unlock again and verify entry is present.
         let (_, loaded) = unlock_vault(&vault_file.data, pass).unwrap();
         assert_eq!(loaded.passwords.len(), 1);
         assert_eq!(loaded.passwords[0].name, "GitHub");
+    }
+
+    /// Regression test for the critical AES-GCM nonce-reuse bug: v2 stored a
+    /// fixed nonce per slot in the header and reused it on every save. Two
+    /// successive writes of the *same slot* must now produce cells whose
+    /// first `GCM_NONCE_LEN` bytes (the nonce) differ, and each write must
+    /// still decrypt back to its own distinct content — proving nonces are
+    /// generated fresh per write, not reused.
+    #[test]
+    fn write_slot_never_reuses_a_nonce_across_saves() {
+        let pass = b"nonce-reuse-regression-pass";
+        let vault_bytes = init_vault(VaultInitParams {
+            main_passphrase: pass.to_vec(),
+            decoy_passphrase: None,
+            duress_passphrase: None,
+            vault_size: TEST_VAULT_SIZE,
+            decoy_blob: None,
+            kdf_iterations: TEST_ITERATIONS,
+        })
+        .unwrap();
+
+        let mut vault_file = VaultFile::from_bytes(vault_bytes).unwrap();
+        let kdf_out = kdf::derive_master(pass, &vault_file.header.salt, TEST_ITERATIONS);
+        let slot_keys = kdf::derive_all_slot_keys(kdf_out.master_secret());
+        let slot = SlotKind::Main;
+        let key = slot_keys[slot.index()].bytes();
+
+        let cell_sz = crate::format::cell_size(vault_file.data.len());
+        let offset = crate::format::cell_offset(vault_file.data.len(), slot.index());
+
+        let mut blob_a = VaultBlob::new();
+        blob_a
+            .passwords
+            .push(PasswordEntry::new("Site A", "alice", "pw-a"));
+        vault_file.write_slot(slot, key, &blob_a).unwrap();
+        let cell_after_a = vault_file.data[offset..offset + cell_sz].to_vec();
+        let nonce_a = &cell_after_a[..aead::GCM_NONCE_LEN];
+
+        let mut blob_b = VaultBlob::new();
+        blob_b
+            .passwords
+            .push(PasswordEntry::new("Site B", "bob", "pw-b"));
+        vault_file.write_slot(slot, key, &blob_b).unwrap();
+        let cell_after_b = vault_file.data[offset..offset + cell_sz].to_vec();
+        let nonce_b = &cell_after_b[..aead::GCM_NONCE_LEN];
+
+        assert_ne!(
+            nonce_a, nonce_b,
+            "two successive writes to the same slot reused the same AES-GCM nonce"
+        );
+
+        // Sanity: the second write is what's actually stored and readable now.
+        let loaded = vault_file.read_slot(slot, key).unwrap();
+        assert_eq!(loaded.passwords[0].name, "Site B");
     }
 
     #[test]
@@ -542,6 +704,7 @@ mod tests {
             duress_passphrase: Some(b"duress-pass".to_vec()),
             vault_size: TEST_VAULT_SIZE,
             decoy_blob: None,
+            kdf_iterations: TEST_ITERATIONS,
         })
         .unwrap();
 
@@ -555,5 +718,46 @@ mod tests {
             "duress must not open a vault — got {:?}",
             result
         );
+    }
+
+    #[test]
+    fn create_fresh_rejects_oversized_vault() {
+        let result = VaultFile::create_fresh(MAX_VAULT_SIZE + 1, TEST_ITERATIONS);
+        assert!(result.is_err(), "vault_size above MAX_VAULT_SIZE must fail");
+    }
+
+    #[test]
+    fn from_bytes_rejects_oversized_data() {
+        // Don't actually allocate a gigabyte-plus buffer for this test — a
+        // header-shaped prefix is enough since the size check runs before
+        // header parsing.
+        let mut data = vec![0u8; HEADER_SIZE];
+        data[..4].copy_from_slice(crate::format::MAGIC);
+        let oversized_len = MAX_VAULT_SIZE + 1;
+        data.resize(oversized_len, 0);
+
+        let result = VaultFile::from_bytes(data);
+        assert!(
+            result.is_err(),
+            "vault file larger than MAX_VAULT_SIZE must be rejected"
+        );
+    }
+
+    #[test]
+    fn from_bytes_rejects_undersized_data_with_a_clear_error() {
+        // A truncated/corrupted vault.fob (e.g. an interrupted USB copy)
+        // must be rejected with a clear diagnostic here, not silently
+        // accepted into a file with degenerate slot cells that only
+        // surfaces later as an opaque "wrong passphrase" on every unlock.
+        let mut data = vec![0u8; HEADER_SIZE + 10];
+        data[..4].copy_from_slice(crate::format::MAGIC);
+
+        match VaultFile::from_bytes(data) {
+            Err(err) => assert!(
+                format!("{err}").contains("below the minimum"),
+                "expected a clear minimum-size error, got: {err}"
+            ),
+            Ok(_) => panic!("expected an error for an undersized vault file"),
+        }
     }
 }

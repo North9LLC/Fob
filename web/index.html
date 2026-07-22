@@ -4,7 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none';">
-<title>Sigil — Encrypted Vault</title>
+<title>Fob — Encrypted Vault</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAzMiAzMiI+PHJlY3Qgd2lkdGg9IjMyIiBoZWlnaHQ9IjMyIiByeD0iOCIgZmlsbD0iIzQyNTdlNSIvPjxjaXJjbGUgY3g9IjE2IiBjeT0iMTMiIHI9IjMuNiIgZmlsbD0id2hpdGUiLz48cGF0aCBkPSJNMTMuMSAxNS42TDEwLjYgMjRIMjEuNEwxOC45IDE1LjZaIiBmaWxsPSJ3aGl0ZSIvPjwvc3ZnPg==">
 <style>
 :root {
   --bg:        #07090f;
@@ -92,8 +93,23 @@ svg{display:block;flex-shrink:0}
 .field input::placeholder,.field textarea::placeholder{color:var(--text-3)}
 .pass-wrap{position:relative}
 .pass-wrap input{padding-right:40px}
-.pass-toggle{position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--text-3);padding:4px;border-radius:4px;transition:color var(--t)}
-.pass-toggle:hover{color:var(--text-2)}
+.pass-toggle{position:absolute;right:6px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--text-3);padding:6px;border-radius:6px;display:flex;transition:color var(--t),background var(--t)}
+.pass-toggle:hover{color:var(--text);background:var(--surface2)}
+.pass-toggle.accent:hover{color:var(--blue);background:var(--blue-dim)}
+
+/* Collapsible "advanced" section — custom, not native <details>, so it
+   animates smoothly and matches the rest of the app's look. */
+.advanced-toggle{display:flex;align-items:center;gap:7px;background:none;border:none;color:var(--text-2);font-size:12.5px;font-weight:600;cursor:pointer;padding:2px 0;width:100%;text-align:left;transition:color var(--t)}
+.advanced-toggle:hover{color:var(--text)}
+.advanced-toggle-icon{display:flex;transition:transform var(--t) ease;color:var(--text-3)}
+.advanced-toggle[aria-expanded="true"] .advanced-toggle-icon{transform:rotate(90deg)}
+.advanced-panel{display:flex;flex-direction:column;gap:14px;max-height:0;overflow:hidden;transition:max-height .28s ease,opacity .2s ease;opacity:0}
+.advanced-panel.open{max-height:280px;opacity:1;transition:max-height .32s ease,opacity .28s ease .04s}
+
+/* Password strength meter */
+.pw-strength{display:flex;gap:3px;margin-top:7px}
+.pw-strength-seg{height:3px;flex:1;border-radius:2px;background:var(--border);transition:background .2s ease}
+.pw-strength-label{font-size:11px;color:var(--text-3);margin-top:5px;transition:color .2s ease;min-height:14px}
 
 .btn-row{display:flex;gap:8px}
 .btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;border:none;border-radius:var(--radius-sm);padding:10px 18px;font-size:13.5px;font-weight:500;transition:all var(--t);letter-spacing:-.01em;white-space:nowrap}
@@ -208,7 +224,8 @@ svg{display:block;flex-shrink:0}
 .detail-meta-label{font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.07em}
 .detail-meta-val{font-size:12.5px;color:var(--text-2)}
 
-.danger-zone{margin-top:auto;padding-top:16px}
+.danger-zone{margin-top:28px;padding-top:16px;border-top:1px solid var(--border);display:flex;gap:8px}
+.danger-zone .btn{flex:1}
 
 .copy-btn{background:var(--surface2);color:var(--text-2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:8px 13px;font-size:12px;font-weight:500;display:flex;align-items:center;gap:5px;transition:all var(--t);flex-shrink:0;white-space:nowrap;cursor:pointer}
 .copy-btn:hover{background:var(--border2);color:var(--text)}
@@ -241,8 +258,9 @@ svg{display:block;flex-shrink:0}
 /* ── Modal ───────────────────────────────────────────────────────── */
 .modal-backdrop{display:none;position:fixed;inset:0;z-index:200;background:rgba(0,0,0,.65);align-items:center;justify-content:center;backdrop-filter:blur(3px)}
 .modal-backdrop.open{display:flex;animation:fadeIn .15s ease}
-.modal{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:26px 30px;width:450px;max-height:90vh;overflow-y:auto;box-shadow:0 12px 50px rgba(0,0,0,.6),inset 0 1px 0 rgba(255,255,255,.04);display:flex;flex-direction:column;gap:16px;animation:modalIn .18s ease}
+.modal{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:26px 30px;width:450px;max-height:90vh;overflow-y:auto;box-shadow:0 12px 50px rgba(0,0,0,.6),inset 0 1px 0 rgba(255,255,255,.04);display:flex;flex-direction:column;gap:16px;animation:modalIn .18s ease;transition:width .2s ease}
 .modal-sm{width:340px;padding:24px}
+.modal-wide{width:600px}
 .modal-title{font-size:16px;font-weight:700;letter-spacing:-.2px}
 .modal-sub{font-size:13px;color:var(--text-2);line-height:1.6}
 .modal-footer{display:flex;gap:10px;justify-content:flex-end;margin-top:4px}
@@ -269,10 +287,11 @@ svg{display:block;flex-shrink:0}
     <div class="brand-logo">
       <svg viewBox="0 0 30 35" fill="none" width="30" height="35">
         <path d="M15 1.5L27.5 6.5V18C27.5 24.6 21.9 30.4 15 33C8.1 30.4 2.5 24.6 2.5 18V6.5L15 1.5Z" fill="rgba(255,255,255,.1)" stroke="rgba(255,255,255,.22)" stroke-width=".75"/>
-        <path d="M20 11C20 9.1 17.8 8 15 8C12.2 8 10 9.1 10 11C10 12.9 11.8 13.8 15 14.3C18.2 14.8 20 16 20 18C20 19.9 17.8 21 15 21C12.2 21 10 19.9 10 18" stroke="white" stroke-width="2" stroke-linecap="round"/>
+        <circle cx="15" cy="13.2" r="3.4" fill="white"/>
+        <path d="M12.3 15.6L10.1 23.5H19.9L17.7 15.6Z" fill="white"/>
       </svg>
     </div>
-    <div class="brand-name">Sigil</div>
+    <div class="brand-name">Fob</div>
     <div class="brand-tagline">Encrypted USB Vault</div>
   </div>
 
@@ -286,7 +305,7 @@ svg{display:block;flex-shrink:0}
         <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><rect x="2.5" y="7" width="11" height="7.5" rx="1.5"/><path d="M5 7V5.5a3 3 0 016 0V7"/></svg>
       </div>
       <div>
-        <div class="vault-badge-name">vault.sigil</div>
+        <div class="vault-badge-name">Encrypted Vault</div>
         <div class="vault-badge-hint" id="unlock-vault-hint">Saved in browser</div>
       </div>
     </div>
@@ -314,7 +333,7 @@ svg{display:block;flex-shrink:0}
       <div class="vault-picker-icon">
         <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="22" height="22"><path d="M10 13V4"/><path d="M7 7l3-3 3 3"/><rect x="3" y="14" width="14" height="4" rx="1.5"/></svg>
       </div>
-      <div class="vault-picker-text">Open vault.sigil</div>
+      <div class="vault-picker-text">Open vault.fob</div>
       <div class="vault-picker-hint">Click to browse, or drag and drop</div>
     </div>
     <div class="or-divider">or</div>
@@ -339,6 +358,27 @@ svg{display:block;flex-shrink:0}
       <label>Confirm Passphrase</label>
       <input id="create-pass2" type="password" autocomplete="new-password" spellcheck="false" placeholder="Confirm passphrase" />
     </div>
+    <button type="button" class="advanced-toggle" data-action="toggle-advanced" aria-expanded="false" aria-controls="create-advanced">
+      <span class="advanced-toggle-icon">
+        <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="10" height="10"><path d="M4 2l4 4-4 4"/></svg>
+      </span>
+      Advanced: decoy &amp; duress passphrases
+    </button>
+    <div class="advanced-panel" id="create-advanced">
+      <div class="lock-card-sub">
+        A decoy passphrase opens a second vault with fake data — useful under
+        coercion. A duress passphrase silently destroys this vault instead of
+        opening it. Leave blank to skip either.
+      </div>
+      <div class="field">
+        <label>Decoy Passphrase</label>
+        <input id="create-decoy-pass" type="password" autocomplete="new-password" spellcheck="false" placeholder="Optional — opens a fake vault" />
+      </div>
+      <div class="field">
+        <label>Duress Passphrase</label>
+        <input id="create-duress-pass" type="password" autocomplete="new-password" spellcheck="false" placeholder="Optional — destroys this vault" />
+      </div>
+    </div>
     <div class="err-msg" id="create-err"></div>
     <div class="btn-row">
       <button class="btn btn-ghost" data-action="back-to-pick" style="flex:1">← Back</button>
@@ -353,10 +393,11 @@ svg{display:block;flex-shrink:0}
     <div class="topbar-logo">
       <svg viewBox="0 0 30 35" fill="none" width="16" height="19">
         <path d="M15 1.5L27.5 6.5V18C27.5 24.6 21.9 30.4 15 33C8.1 30.4 2.5 24.6 2.5 18V6.5L15 1.5Z" fill="rgba(255,255,255,.15)" stroke="rgba(255,255,255,.3)" stroke-width=".75"/>
-        <path d="M20 11C20 9.1 17.8 8 15 8C12.2 8 10 9.1 10 11C10 12.9 11.8 13.8 15 14.3C18.2 14.8 20 16 20 18C20 19.9 17.8 21 15 21C12.2 21 10 19.9 10 18" stroke="white" stroke-width="2" stroke-linecap="round"/>
+        <circle cx="15" cy="13.2" r="3.4" fill="white"/>
+        <path d="M12.3 15.6L10.1 23.5H19.9L17.7 15.6Z" fill="white"/>
       </svg>
     </div>
-    <span class="topbar-title">Sigil</span>
+    <span class="topbar-title">Fob</span>
     <span style="font-size:11px;color:var(--text-3);font-family:var(--mono)" id="tb-version"></span>
     <div class="topbar-sep"></div>
     <span class="topbar-badge" id="tb-badge">
@@ -436,7 +477,7 @@ svg{display:block;flex-shrink:0}
 
 <!-- ══ ADD MODAL ══════════════════════════════════════════════════ -->
 <div class="modal-backdrop" id="add-modal">
-  <div class="modal">
+  <div class="modal" id="modal">
     <div class="modal-title" id="modal-title">Add entry</div>
     <div id="modal-fields"></div>
     <div class="err-msg" id="modal-err"></div>
@@ -482,6 +523,8 @@ const IC = {
   trash:    `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="13" height="13"><path d="M2 4.5h12"/><path d="M5 4.5V3h6v1.5"/><path d="M3.5 4.5l1 9h7l1-9"/></svg>`,
   eye:      `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="13" height="13"><path d="M1 8C1 8 4 3.5 8 3.5s7 4.5 7 4.5-3 4.5-7 4.5S1 8 1 8z"/><circle cx="8" cy="8" r="2"/></svg>`,
   eyeOff:   `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="13" height="13"><path d="M2 2l12 12"/><path d="M8.8 3.2A7 7 0 018 3C4 3 1 8 1 8s.9 1.6 2.4 2.9"/><path d="M11.2 5A7 7 0 0115 8s-3 5-7 5a7 7 0 01-2.5-.5"/></svg>`,
+  pencil:   `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="13" height="13"><path d="M11 2l3 3-8 8H3v-3l8-8z"/><path d="M9.5 3.5l3 3"/></svg>`,
+  refresh:  `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><path d="M2.5 8a5.5 5.5 0 019.9-3.3"/><path d="M13.5 8a5.5 5.5 0 01-9.9 3.3"/><path d="M12.5 2.5v3h-3"/><path d="M3.5 13.5v-3h3"/></svg>`,
 };
 
 // Avatar color palette (deterministic from name)
@@ -491,12 +534,12 @@ function avatarColor(str) {
   for (let i = 0; i < str.length; i++) h = (h * 31 + str.charCodeAt(i)) & 0x7fffffff;
   return AVATAR_COLORS[h % AVATAR_COLORS.length];
 }
-function avatarLetter(str) { return (str||'?')[0].toUpperCase(); }
+function avatarLetter(str) { return esc((str||'?')[0].toUpperCase()); }
 
 // ── IndexedDB — vault bytes (primary storage) ─────────────────────
 // The encrypted vault lives here. Saves are instant/silent.
 // "Export to USB" is an explicit action the user triggers.
-const VAULTIDB_NAME  = 'sigil-vault-data';
+const VAULTIDB_NAME  = 'fob-vault-data';
 const VAULTIDB_STORE = 'vault';
 const VAULTIDB_KEY   = 'bytes';
 
@@ -535,11 +578,20 @@ async function _clearVaultBytes() {
 
 // ── State ──────────────────────────────────────────────────────────
 let vaultFileData   = null;  // Uint8Array of current encrypted vault
+let vaultFileHandle = null;  // FileSystemFileHandle for vaultFileData, if opened via
+                              // showOpenFilePicker — lets the duress wipe reach the
+                              // actual file on disk, not just our IndexedDB cache.
+                              // null whenever we don't have a writable handle (plain
+                              // <input type=file>, drag-drop, or the file:// fetch
+                              // auto-load path) — the duress wipe can't reach the
+                              // physical file in that case, only the local cache.
 let vaultPassphrase = null;  // Uint8Array — zeroized on lock
 let vaultJSON       = null;  // decrypted vault object
+let vaultSlot       = 0;     // which slot vaultJSON came from (0=main, 1=decoy)
 let currentView     = 'passwords';
 let selectedIdx     = -1;
 let searchQ         = '';
+let editingEntry    = null; // {field, id} of the entry the add-modal is editing, or null when adding
 let totpTimer       = null;
 let lockTimer       = null;
 let clipClearTimer  = null;
@@ -561,53 +613,253 @@ function resetLockTimer() {
 );
 
 // ── WebCrypto vault ────────────────────────────────────────────────
-const MAGIC    = new Uint8Array([0x53,0x49,0x47,0x4c]);
-const HDR_SIZE = 56;
+//
+// One multi-slot format shared with the CLI (fob-core/src/{format,kdf,vault}.rs):
+// PBKDF2-HMAC-SHA256 (WebCrypto has no native Argon2id) derives a master
+// secret per passphrase; HKDF-SHA256 domain-separates that into 4 slot keys;
+// AES-256-GCM encrypts each fixed-size slot cell. Trying a passphrase means
+// trying to decrypt all 4 cells — whichever one authenticates tells you
+// which slot (main/decoy/duress) it belongs to. See format.rs for the exact
+// byte layout; this must stay byte-for-byte compatible with it.
+const MAGIC          = new Uint8Array([0x46,0x4f,0x42,0x32]); // "FOB2"
+const HEADER_SIZE     = 100;
+const NONCE_LEN       = 12; // AES-GCM nonce, generated fresh per write, stored inline in each cell
+const NUM_SLOTS       = 4;
+const SLOT_MAIN       = 0;
+const SLOT_DECOY      = 1;
+const SLOT_DURESS     = 2;
+const SLOT_LABELS     = ['fob/v1/main','fob/v1/decoy','fob/v1/duress','fob/v1/reserved'];
+const DEFAULT_ITERS   = 310_000;
+const DEFAULT_VAULT_SIZE = 16 * 1024 * 1024;
+const MAX_VAULT_SIZE  = 1024 * 1024 * 1024; // must match fob-core/src/format.rs
+// format_version 3: each cell stores its own fresh random nonce (not a fixed
+// per-slot nonce reused from the header on every save, as v2 did — an
+// unconditional AES-GCM nonce-reuse break). Must match fob-core/src/format.rs.
+const FORMAT_VERSION  = 3;
+const MAX_KDF_ITERATIONS = 10_000_000; // must match fob-core/src/format.rs
+const GETRANDOM_MAX   = 65536; // crypto.getRandomValues() rejects larger single fills
 
-async function deriveKey(passBytes, salt, iters) {
-  const base = await crypto.subtle.importKey('raw', passBytes, 'PBKDF2', false, ['deriveKey']);
-  return crypto.subtle.deriveKey(
-    { name:'PBKDF2', hash:'SHA-256', salt, iterations:iters },
-    base, { name:'AES-GCM', length:256 }, false, ['encrypt','decrypt']
-  );
+function fillRandom(buf) {
+  for (let off = 0; off < buf.length; off += GETRANDOM_MAX) {
+    crypto.getRandomValues(buf.subarray(off, Math.min(off + GETRANDOM_MAX, buf.length)));
+  }
+  return buf;
 }
-async function vaultOpen(fileBytes, passBytes) {
-  if (fileBytes.length < HDR_SIZE + 16) throw new Error('File too small');
-  if (!fileBytes.slice(0,4).every((b,i) => b === MAGIC[i])) throw new Error('Not a Sigil vault');
-  const view  = new DataView(fileBytes.buffer, fileBytes.byteOffset);
-  const iters = view.getUint32(8, true);
-  const key   = await deriveKey(passBytes, fileBytes.slice(12,44), iters);
+
+function cellSize(fileSize)          { return Math.floor((fileSize - HEADER_SIZE) / NUM_SLOTS); }
+function cellOffset(fileSize, slot)  { return HEADER_SIZE + slot * cellSize(fileSize); }
+
+// Overwrite the actual vault.fob file on disk with random bytes of the same
+// size, mirroring the CLI's duress wipe (fob-core/src/vault.rs::wipe_file).
+//
+// Only possible when we hold a live vaultFileHandle from
+// showOpenFilePicker() — a dropped File, a plain <input type=file>, and the
+// file:// fetch auto-load path never give a writable handle, so this is a
+// no-op for those (the IndexedDB cache clear alongside this call is the
+// only "wipe" that reaches those cases — see the README's Known
+// limitations for what that does and doesn't protect against).
+async function wipeVaultFile() {
+  if (!vaultFileHandle || !vaultFileData) return;
   try {
-    const plain = await crypto.subtle.decrypt({ name:'AES-GCM', iv:fileBytes.slice(44,56) }, key, fileBytes.slice(56));
-    return JSON.parse(new TextDecoder().decode(plain));
-  } catch { throw new Error('Wrong passphrase'); }
+    const garbage = fillRandom(new Uint8Array(vaultFileData.length));
+    const w = await vaultFileHandle.createWritable();
+    await w.write(garbage);
+    await w.close();
+  } catch (_) {
+    // Best-effort: permission revoked, file moved, etc. — the IndexedDB
+    // clear still happens regardless.
+  } finally {
+    vaultFileHandle = null;
+  }
 }
-async function vaultSave(fileBytes, passBytes, json) {
-  const view  = new DataView(fileBytes.buffer, fileBytes.byteOffset);
-  const iters = view.getUint32(8, true);
-  const iv    = crypto.getRandomValues(new Uint8Array(12));
-  const key   = await deriveKey(passBytes, fileBytes.slice(12,44), iters);
-  const ct    = await crypto.subtle.encrypt({ name:'AES-GCM', iv }, key, new TextEncoder().encode(JSON.stringify(json)));
-  const out   = new Uint8Array(HDR_SIZE + ct.byteLength);
-  out.set(fileBytes.slice(0,44)); out.set(iv,44); out.set(new Uint8Array(ct),56);
+
+function parseHeader(fileBytes) {
+  if (fileBytes.length < HEADER_SIZE + 16) throw new Error('Vault file too small');
+  if (fileBytes.length > MAX_VAULT_SIZE) throw new Error('Vault file exceeds maximum supported size');
+  if (!fileBytes.slice(0,4).every((b,i) => b === MAGIC[i])) throw new Error('Not a Fob vault');
+  const view = new DataView(fileBytes.buffer, fileBytes.byteOffset, fileBytes.byteLength);
+  const formatVersion = view.getUint32(4, true);
+  if (formatVersion !== FORMAT_VERSION) {
+    throw new Error(`Unsupported vault format version ${formatVersion} (expected ${FORMAT_VERSION})`);
+  }
+  const kdfIterations = view.getUint32(8, true);
+  if (kdfIterations > MAX_KDF_ITERATIONS) {
+    throw new Error(`kdf_iterations ${kdfIterations} exceeds maximum of ${MAX_KDF_ITERATIONS}`);
+  }
+  const salt = fileBytes.slice(12, 44);
+  return { kdfIterations, salt, headerBytes: fileBytes.slice(0, HEADER_SIZE) };
+}
+
+async function fingerprintOf(salt) {
+  const digest = await crypto.subtle.digest('SHA-256', salt);
+  return Array.from(new Uint8Array(digest)).slice(0,8).map(b=>b.toString(16).padStart(2,'0')).join('');
+}
+
+async function deriveMaster(passBytes, salt, iterations) {
+  const base = await crypto.subtle.importKey('raw', passBytes, 'PBKDF2', false, ['deriveBits']);
+  const bits = await crypto.subtle.deriveBits({ name:'PBKDF2', hash:'SHA-256', salt, iterations }, base, 256);
+  return new Uint8Array(bits);
+}
+
+// HKDF salt is intentionally empty — HMAC zero-pads a short key to block
+// size regardless, so an empty salt and an all-zero salt of hash length
+// (the Rust `hkdf` crate's default for no salt) produce identical output.
+async function deriveSlotKey(masterSecret, label) {
+  const hkdfBase = await crypto.subtle.importKey('raw', masterSecret, 'HKDF', false, ['deriveBits']);
+  const bits = await crypto.subtle.deriveBits(
+    { name:'HKDF', hash:'SHA-256', salt:new Uint8Array(0), info:new TextEncoder().encode(label) },
+    hkdfBase, 256
+  );
+  return crypto.subtle.importKey('raw', bits, 'AES-GCM', false, ['encrypt','decrypt']);
+}
+
+function deriveAllSlotKeys(masterSecret) {
+  return Promise.all(SLOT_LABELS.map(label => deriveSlotKey(masterSecret, label)));
+}
+
+// Cell layout: nonce (12 bytes, fresh and random on every write) || AES-GCM
+// ciphertext || 16-byte tag, encrypted to exactly `cellSz` bytes total.
+// Plaintext (before encryption) is len_u64_le || JSON || random padding.
+// The nonce is never reused across writes — see format.rs's module doc for
+// why that matters (v2 stored one fixed nonce per slot in the header,
+// reused on every save, an unconditional AES-GCM nonce-reuse break).
+async function encryptSlot(key, aad, json, cellSz) {
+  const jsonBytes = new TextEncoder().encode(JSON.stringify(json));
+  const plainCapacity = cellSz - NONCE_LEN - 16;
+  if (jsonBytes.length + 8 > plainCapacity) throw new Error('Vault entry too large for this slot');
+  const padded = fillRandom(new Uint8Array(plainCapacity));
+  new DataView(padded.buffer).setBigUint64(0, BigInt(jsonBytes.length), true);
+  padded.set(jsonBytes, 8);
+  const nonce = fillRandom(new Uint8Array(NONCE_LEN));
+  const ct = await crypto.subtle.encrypt({ name:'AES-GCM', iv:nonce, additionalData:aad }, key, padded);
+  const out = new Uint8Array(NONCE_LEN + ct.byteLength);
+  out.set(nonce, 0);
+  out.set(new Uint8Array(ct), NONCE_LEN);
   return out;
 }
 
-async function createVaultBytes(passphrase) {
-  const passBytes = new TextEncoder().encode(passphrase);
-  const salt  = crypto.getRandomValues(new Uint8Array(32));
-  const iv    = crypto.getRandomValues(new Uint8Array(12));
-  const iters = 310_000;
-  const fpRaw = await crypto.subtle.digest('SHA-256', salt);
-  const fp    = Array.from(new Uint8Array(fpRaw)).slice(0,8).map(b=>b.toString(16).padStart(2,'0')).join('');
-  const json  = { version:1, created:nowSecs(), modified:nowSecs(), fingerprint:fp, passwords:[], totp:[], ssh_keys:[], notes:[] };
-  const key   = await deriveKey(passBytes, salt, iters);
-  const ct    = await crypto.subtle.encrypt({ name:'AES-GCM', iv }, key, new TextEncoder().encode(JSON.stringify(json)));
-  const out   = new Uint8Array(HDR_SIZE + ct.byteLength);
-  const view  = new DataView(out.buffer);
-  out.set(MAGIC,0); view.setUint32(4,1,true); view.setUint32(8,iters,true);
-  out.set(salt,12); out.set(iv,44); out.set(new Uint8Array(ct),56);
-  passBytes.fill(0);
+async function decryptSlot(key, aad, cell) {
+  const nonce = cell.slice(0, NONCE_LEN);
+  const ciphertext = cell.slice(NONCE_LEN);
+  const plain = await crypto.subtle.decrypt({ name:'AES-GCM', iv:nonce, additionalData:aad }, key, ciphertext);
+  const view = new DataView(plain);
+  const jsonLen = Number(view.getBigUint64(0, true));
+  const jsonBytes = new Uint8Array(plain, 8, jsonLen);
+  return JSON.parse(new TextDecoder().decode(jsonBytes));
+}
+
+/// Try a passphrase against Main, Decoy, then Duress in order.
+/// Returns { slot, json }. Throws 'Wrong passphrase' if none match.
+/// A SLOT_DURESS result is not itself distinguished from success here —
+/// callers MUST check `slot` and treat SLOT_DURESS as a wipe trigger, never
+/// as a normal unlock.
+async function vaultUnlock(fileBytes, passBytes) {
+  const header = parseHeader(fileBytes);
+  const master = await deriveMaster(passBytes, header.salt, header.kdfIterations);
+  const keys = await deriveAllSlotKeys(master);
+  const cellSz = cellSize(fileBytes.length);
+
+  for (const slot of [SLOT_MAIN, SLOT_DECOY, SLOT_DURESS]) {
+    const off = cellOffset(fileBytes.length, slot);
+    const cell = fileBytes.slice(off, off + cellSz);
+    try {
+      const json = await decryptSlot(keys[slot], header.headerBytes, cell);
+      return { slot, json };
+    } catch { /* wrong key for this slot — try the next one */ }
+  }
+  throw new Error('Wrong passphrase');
+}
+
+async function vaultSave(fileBytes, passBytes, slot, json) {
+  const header = parseHeader(fileBytes);
+  const master = await deriveMaster(passBytes, header.salt, header.kdfIterations);
+  const keys = await deriveAllSlotKeys(master);
+  const cellSz = cellSize(fileBytes.length);
+  const ct = await encryptSlot(keys[slot], header.headerBytes, json, cellSz);
+  const out = new Uint8Array(fileBytes); // copy — other slots must stay untouched
+  out.set(ct, cellOffset(fileBytes.length, slot));
+  return out;
+}
+
+/// Create a fixed-size (16 MiB) vault file with a main slot, and optionally
+/// a decoy and/or duress slot. Every slot cell — populated or not — is the
+/// same size and starts as random bytes, so an observer can't tell which
+/// slots (if any beyond the one they were given a passphrase for) are in use.
+async function createVaultBytes(mainPass, decoyPass, duressPass) {
+  const vaultSize = DEFAULT_VAULT_SIZE;
+  const iterations = DEFAULT_ITERS;
+
+  const data = fillRandom(new Uint8Array(vaultSize));
+  const salt = data.slice(12, 44);
+
+  const view = new DataView(data.buffer);
+  data.set(MAGIC, 0);
+  view.setUint32(4, FORMAT_VERSION, true);
+  view.setUint32(8, iterations, true);  // kdf_iterations
+  data.set(salt, 12);
+  data.fill(0, 44, HEADER_SIZE);         // reserved (nonces live per-cell now, not in the header)
+
+  const headerBytes = data.slice(0, HEADER_SIZE);
+  const cellSz = cellSize(vaultSize);
+  const fp = await fingerprintOf(salt);
+  const now = nowSecs();
+  const emptyBlob = () => ({ version:2, created:now, modified:now, fingerprint:fp, passwords:[], totp:[], ssh_keys:[], notes:[] });
+
+  const mainMaster = await deriveMaster(new TextEncoder().encode(mainPass), salt, iterations);
+  const mainKeys = await deriveAllSlotKeys(mainMaster);
+  const mainCt = await encryptSlot(mainKeys[SLOT_MAIN], headerBytes, emptyBlob(), cellSz);
+  data.set(mainCt, cellOffset(vaultSize, SLOT_MAIN));
+
+  if (decoyPass) {
+    const decoyMaster = await deriveMaster(new TextEncoder().encode(decoyPass), salt, iterations);
+    const decoyKeys = await deriveAllSlotKeys(decoyMaster);
+    const decoyCt = await encryptSlot(decoyKeys[SLOT_DECOY], headerBytes, emptyBlob(), cellSz);
+    data.set(decoyCt, cellOffset(vaultSize, SLOT_DECOY));
+  }
+
+  if (duressPass) {
+    const duressMaster = await deriveMaster(new TextEncoder().encode(duressPass), salt, iterations);
+    const duressKeys = await deriveAllSlotKeys(duressMaster);
+    // Deliberately empty — opening this slot is what triggers a wipe, not a real vault.
+    const duressCt = await encryptSlot(duressKeys[SLOT_DURESS], headerBytes, emptyBlob(), cellSz);
+    data.set(duressCt, cellOffset(vaultSize, SLOT_DURESS));
+  }
+
+  return data;
+}
+
+// ── SSH key import ───────────────────────────────────────────────────
+// Matches fob-core/src/sshkey.rs byte-for-byte: SHA256 of the base64-decoded
+// key blob, base64-encoded without padding, "SHA256:" prefix — the standard
+// `ssh-keygen -lf` fingerprint format.
+async function sshFingerprint(publicKeyLine) {
+  const parts = publicKeyLine.trim().split(/\s+/);
+  if (parts.length < 2) throw new Error('Malformed SSH public key');
+  let blob;
+  try { blob = Uint8Array.from(atob(parts[1]), c => c.charCodeAt(0)); }
+  catch { throw new Error('Invalid base64 in SSH public key'); }
+  const digest = await crypto.subtle.digest('SHA-256', blob);
+  const b64 = btoa(String.fromCharCode(...new Uint8Array(digest))).replace(/=+$/, '');
+  return `SHA256:${b64}`;
+}
+function sshAlgorithm(publicKeyLine) {
+  const type = publicKeyLine.trim().split(/\s+/)[0] || '';
+  if (type === 'ssh-rsa') return 'Rsa';
+  if (type.startsWith('ecdsa-sha2-')) return 'Ecdsa';
+  return 'Ed25519';
+}
+
+// ── Password generator ──────────────────────────────────────────────
+function generatePassword(length = 20) {
+  // Rejection sampling against the charset size to avoid modulo bias.
+  const charset = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*-_=+';
+  const max = 256 - (256 % charset.length);
+  let out = '';
+  const buf = new Uint8Array(1);
+  while (out.length < length) {
+    crypto.getRandomValues(buf);
+    if (buf[0] < max) out += charset[buf[0] % charset.length];
+  }
   return out;
 }
 
@@ -639,25 +891,27 @@ document.addEventListener('DOMContentLoaded', () => {
   // card-pick is visible by default in HTML; swap it out once we know what to show.
   setupDragDrop();
 
-  // Async: check IDB then try to auto-load vault.sigil from same dir (USB case).
+  // Async: check IDB then try to auto-load vault.fob from same dir (USB case).
   // Runs after the pick card is already visible so nothing blocks the user.
   (async () => {
     try {
       const savedBytes = await _loadVaultBytes();
       if (savedBytes) {
         vaultFileData = savedBytes;
+        vaultFileHandle = null; // IndexedDB has no live handle to the original file
         showUnlockCard();
         return;
       }
       if (location.protocol === 'file:') {
-        const vaultUrl = location.href.replace(/\/[^/?#]*$/, '/vault.sigil');
+        const vaultUrl = location.href.replace(/\/[^/?#]*$/, '/vault.fob');
         const resp = await fetch(vaultUrl);
         if (resp.ok) {
           const arr = new Uint8Array(await resp.arrayBuffer());
-          if (arr.length > 56) {
+          if (arr.length > HEADER_SIZE) {
             vaultFileData = arr;
+            vaultFileHandle = null; // fetch() is read-only, no writable handle
             await _saveVaultBytes(arr);
-            showUnlockCard('vault.sigil');
+            showUnlockCard('vault.fob');
           }
         }
       }
@@ -666,6 +920,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Wire up search (oninput removed from HTML)
   document.getElementById('search').addEventListener('input', onSearch);
+
+  // Live password-strength feedback in the add/edit modal (delegated since
+  // #mf-password is recreated fresh every time the modal opens).
+  document.addEventListener('input', e => {
+    if (e.target.id === 'mf-password') updatePasswordStrength(e.target.value);
+  });
 
   // Single delegated click handler — replaces all inline onclick= attributes.
   // Brave blocks inline event handlers on file:// via CSP; this works everywhere.
@@ -689,6 +949,8 @@ document.addEventListener('DOMContentLoaded', () => {
         case 'save-entry':   saveEntry(); break;
         case 'confirm-no':   closeConfirm(false); break;
         case 'confirm-yes':  closeConfirm(true); break;
+        case 'gen-password': fillGeneratedPassword(); break;
+        case 'toggle-advanced': toggleAdvanced(el); break;
       }
       return;
     }
@@ -698,6 +960,8 @@ document.addEventListener('DOMContentLoaded', () => {
     if (entry) { selectEntry(Number(entry.dataset.selectIdx)); return; }
     const del = e.target.closest('[data-delete-type]');
     if (del) { deleteEntry(del.dataset.deleteType, del.dataset.deleteId, Number(del.dataset.deleteIdx)); return; }
+    const edit = e.target.closest('[data-edit-type]');
+    if (edit) { openEditModal(edit.dataset.editType, edit.dataset.editId); return; }
   });
 
   function setupDragDrop() {
@@ -709,6 +973,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const file = e.dataTransfer.files[0];
       if (!file) return;
       vaultFileData = new Uint8Array(await file.arrayBuffer());
+      vaultFileHandle = null; // a dropped File has no writable handle
       showUnlockCard(file.name);
     });
   }
@@ -719,16 +984,18 @@ async function pickVaultFile() {
   try {
     if ('showOpenFilePicker' in window) {
       const [h] = await window.showOpenFilePicker({
-        types:[{description:'Sigil Vault',accept:{'application/octet-stream':['.sigil']}}],
+        types:[{description:'Fob Vault',accept:{'application/octet-stream':['.fob']}}],
       });
       const file = await h.getFile();
       vaultFileData = new Uint8Array(await file.arrayBuffer());
+      vaultFileHandle = h; // keep it — this is what lets a duress wipe reach the real file
       showUnlockCard(file.name);
     } else {
-      const inp = Object.assign(document.createElement('input'),{type:'file',accept:'.sigil'});
+      const inp = Object.assign(document.createElement('input'),{type:'file',accept:'.fob'});
       await new Promise(res => { inp.onchange = res; inp.click(); });
       if (!inp.files[0]) return;
       vaultFileData = new Uint8Array(await inp.files[0].arrayBuffer());
+      vaultFileHandle = null; // a plain file input never gives a writable handle
       showUnlockCard(inp.files[0].name);
     }
   } catch(e) {
@@ -751,16 +1018,16 @@ async function exportToUSB() {
   const blob = new Blob([vaultFileData],{type:'application/octet-stream'});
   if ('showSaveFilePicker' in window) {
     try {
-      const h = await window.showSaveFilePicker({suggestedName:'vault.sigil',types:[{description:'Sigil Vault',accept:{'application/octet-stream':['.sigil']}}]});
+      const h = await window.showSaveFilePicker({suggestedName:'vault.fob',types:[{description:'Fob Vault',accept:{'application/octet-stream':['.fob']}}]});
       const w = await h.createWritable(); await w.write(blob); await w.close();
       toast('Exported to USB.', 'ok'); return;
     } catch(e) { if (e.name==='AbortError') return; }
   }
   const url = URL.createObjectURL(blob);
-  const a = Object.assign(document.createElement('a'),{href:url,download:'vault.sigil'});
+  const a = Object.assign(document.createElement('a'),{href:url,download:'vault.fob'});
   document.body.appendChild(a); a.click(); document.body.removeChild(a);
   setTimeout(()=>URL.revokeObjectURL(url),60_000);
-  toast('vault.sigil downloaded.', 'ok');
+  toast('vault.fob downloaded.', 'ok');
 }
 
 // ── Persistence — silent save to IDB ──────────────────────────────
@@ -786,7 +1053,16 @@ function showUnlockCard(name) {
 }
 function showCreateCard() {
   _showCard('card-create');
+  const panel = document.getElementById('create-advanced');
+  panel.classList.remove('open');
+  document.querySelector('.advanced-toggle').setAttribute('aria-expanded', 'false');
   setTimeout(() => document.getElementById('create-pass').focus(), 50);
+}
+
+function toggleAdvanced(btn) {
+  const panel = document.getElementById('create-advanced');
+  const open = panel.classList.toggle('open');
+  btn.setAttribute('aria-expanded', open ? 'true' : 'false');
 }
 
 function togglePassVis() {
@@ -812,7 +1088,19 @@ async function doUnlock() {
   btn.innerHTML = '<span class="spinner"></span> Unlocking…';
   try {
     vaultPassphrase = new TextEncoder().encode(inp.value);
-    vaultJSON = await vaultOpen(vaultFileData, vaultPassphrase);
+    const result = await vaultUnlock(vaultFileData, vaultPassphrase);
+    if (result.slot === SLOT_DURESS) {
+      // Duress passphrase: destroy the actual file on disk (if we have a
+      // writable handle to it) plus our IndexedDB cache, and report the
+      // exact same error as a wrong passphrase — the wipe must be silent.
+      await wipeVaultFile();
+      await _clearVaultBytes();
+      vaultFileData = null;
+      vaultPassphrase.fill(0); vaultPassphrase = null;
+      throw new Error('Wrong passphrase');
+    }
+    vaultJSON = result.json;
+    vaultSlot = result.slot;
     inp.value = '';
     await _saveVaultBytes(vaultFileData); // ensure IDB is up to date
     enterVault();
@@ -828,18 +1116,27 @@ async function doUnlock() {
 async function doCreateVault() {
   const p1 = document.getElementById('create-pass');
   const p2 = document.getElementById('create-pass2');
+  const decoyEl  = document.getElementById('create-decoy-pass');
+  const duressEl = document.getElementById('create-duress-pass');
   const errEl = document.getElementById('create-err');
   const btn   = document.getElementById('create-btn');
   errEl.textContent = '';
+  const decoyPass  = decoyEl.value  || null;
+  const duressPass = duressEl.value || null;
   if (!p1.value) { errEl.textContent = 'Enter a passphrase.'; p1.focus(); return; }
   if (p1.value.length < 8) { errEl.textContent = 'Passphrase must be at least 8 characters.'; p1.focus(); return; }
   if (p1.value !== p2.value) { errEl.textContent = 'Passphrases do not match.'; p2.focus(); return; }
+  if (decoyPass && decoyPass === p1.value) { errEl.textContent = 'Decoy passphrase must differ from your main passphrase.'; decoyEl.focus(); return; }
+  if (duressPass && duressPass === p1.value) { errEl.textContent = 'Duress passphrase must differ from your main passphrase.'; duressEl.focus(); return; }
+  if (decoyPass && duressPass && decoyPass === duressPass) { errEl.textContent = 'Decoy and duress passphrases must differ.'; duressEl.focus(); return; }
   btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Creating…';
   try {
-    vaultFileData   = await createVaultBytes(p1.value);
+    vaultFileData   = await createVaultBytes(p1.value, decoyPass, duressPass);
     vaultPassphrase = new TextEncoder().encode(p1.value);
-    vaultJSON       = await vaultOpen(vaultFileData, vaultPassphrase);
-    p1.value = ''; p2.value = '';
+    const result    = await vaultUnlock(vaultFileData, vaultPassphrase);
+    vaultJSON = result.json;
+    vaultSlot = result.slot;
+    p1.value = ''; p2.value = ''; decoyEl.value = ''; duressEl.value = '';
     await _saveVaultBytes(vaultFileData);
     enterVault();
     toast('New vault created. Don\'t forget to export a backup to USB!', 'ok');
@@ -865,10 +1162,25 @@ function enterVault() {
 function doLock() {
   clearTimeout(lockTimer); lockTimer = null;
   if (vaultPassphrase) { vaultPassphrase.fill(0); vaultPassphrase = null; }
-  vaultJSON = null; selectedIdx = -1;
+  vaultJSON = null; vaultSlot = 0; selectedIdx = -1;
   stopTotpTimer();
   if (clipClearTimer) { clearTimeout(clipClearTimer); clipClearTimer = null; }
   navigator.clipboard.writeText('').catch(()=>{});
+  closeModal();
+  closeConfirm(false);
+
+  // "Locked" must mean locked — clear every place decrypted data was ever
+  // rendered or cached, not just the vaultJSON reference. Otherwise
+  // passwords/notes/keys shown before lock stay readable via DevTools even
+  // with the vault UI hidden.
+  document.getElementById('entry-list').innerHTML  = '';
+  document.getElementById('detail-panel').innerHTML = '';
+  document.getElementById('totp-panel').innerHTML  = '';
+  document.getElementById('modal-fields').innerHTML = '';
+  Object.keys(_dc).forEach(k => delete _dc[k]);
+  Object.keys(_totpMap).forEach(k => delete _totpMap[k]);
+  _dcn = 0;
+
   document.getElementById('vault-ui').style.display    = 'none';
   document.getElementById('lock-screen').style.display = 'flex';
   // Show passphrase card if we have a vault, otherwise picker
@@ -900,7 +1212,6 @@ function switchView(view) {
   document.getElementById('detail-panel').style.display = isTotpGrid ? 'none' : 'flex';
   document.getElementById('totp-panel').style.display   = isTotpGrid ? 'flex' : 'none';
   document.getElementById('search-wrap').style.display  = isTotpGrid ? 'none' : '';
-  document.getElementById('add-btn').style.display      = view === 'ssh' ? 'none' : '';
 
   if (isTotpGrid) {
     renderTotpGrid();
@@ -963,7 +1274,7 @@ function renderList() {
       sub = item.body ? item.body.replace(/\s+/g,' ').slice(0,40) : fmtDate(item.modified);
     }
     const color = avatarColor(label);
-    return `<div class="entry-item${i===selectedIdx?' selected':''}" data-select-idx="${i}">
+    return `<div class="entry-item${i===selectedIdx?' selected':''}" data-select-idx="${i}" style="animation:fadeInUp .26s ease both;animation-delay:${Math.min(i,10)*20}ms">
       <div class="entry-avatar" style="background:${color}">${avatarLetter(label)}</div>
       <div class="entry-text">
         <div class="entry-name">${esc(name)}</div>
@@ -998,22 +1309,23 @@ function renderTotpGrid() {
 
   panel.innerHTML = `<div class="totp-grid">${items.map((t,i) => {
     const color = avatarColor(t.issuer);
-    return `<div class="totp-card">
+    return `<div class="totp-card" style="animation:fadeInUp .26s ease both;animation-delay:${Math.min(i,10)*20}ms">
       <div class="totp-card-head">
         <div class="entry-avatar" style="background:${color};width:40px;height:40px;border-radius:11px;font-size:16px">${avatarLetter(t.issuer)}</div>
         <div class="totp-card-info">
           <div class="totp-card-name">${esc(t.issuer)}</div>
           <div class="totp-card-account">${esc(t.account)}</div>
         </div>
-        <button class="btn btn-danger btn-sm" style="padding:5px 8px;opacity:.7" data-delete-type="totp" data-delete-id="${t.id}" data-delete-idx="${i}">${IC.trash}</button>
+        <button class="btn btn-ghost btn-sm" style="padding:5px 8px;opacity:.7" data-edit-type="totp" data-edit-id="${esc(t.id)}">${IC.pencil}</button>
+        <button class="btn btn-danger btn-sm" style="padding:5px 8px;opacity:.7" data-delete-type="totp" data-delete-id="${esc(t.id)}" data-delete-idx="${i}">${IC.trash}</button>
       </div>
       <div class="totp-code-wrap">
-        <div class="totp-code" id="tc-${t.id}">— — —</div>
+        <div class="totp-code" id="tc-${esc(t.id)}">— — —</div>
       </div>
-      <div class="totp-bar"><div class="totp-fill" id="tf-${t.id}"></div></div>
+      <div class="totp-bar"><div class="totp-fill" id="tf-${esc(t.id)}"></div></div>
       <div class="totp-foot">
-        <span class="totp-secs" id="ts-${t.id}"></span>
-        <button class="copy-btn" data-copy-totp="${t.id}">${IC.copy} Copy code</button>
+        <span class="totp-secs" id="ts-${esc(t.id)}"></span>
+        <button class="copy-btn" data-copy-totp="${esc(t.id)}">${IC.copy} Copy code</button>
       </div>
     </div>`;
   }).join('')}</div>`;
@@ -1104,7 +1416,7 @@ function renderPwDetail(p, i) {
   const color = avatarColor(p.name);
   const urlDomain = p.url ? p.url.replace(/^https?:\/\/(www\.)?/,'').split('/')[0] : '';
   document.getElementById('detail-panel').innerHTML = `
-    <div class="detail-header">
+    <div class="detail-header" style="animation:fadeIn .18s ease">
       <div class="detail-avatar" style="background:${color}">${avatarLetter(p.name)}</div>
       <div class="detail-hinfo">
         <div class="detail-title">${esc(p.name)}</div>
@@ -1135,7 +1447,8 @@ function renderPwDetail(p, i) {
       </div>` : ''}
     </div>
     <div class="danger-zone">
-      <button class="btn btn-danger btn-sm" data-delete-type="passwords" data-delete-id="${p.id}" data-delete-idx="${i}">${IC.trash} Delete entry</button>
+      <button class="btn btn-ghost btn-sm" data-edit-type="passwords" data-edit-id="${esc(p.id)}">${IC.pencil} Edit</button>
+      <button class="btn btn-danger btn-sm" data-delete-type="passwords" data-delete-id="${esc(p.id)}" data-delete-idx="${i}">${IC.trash} Delete entry</button>
     </div>`;
 }
 
@@ -1143,7 +1456,7 @@ function renderSshDetail(k, i) {
   const color = avatarColor(k.name);
   const ck = 'k'+(_dcn++); _dc[ck] = k.public_key||'';
   document.getElementById('detail-panel').innerHTML = `
-    <div class="detail-header">
+    <div class="detail-header" style="animation:fadeIn .18s ease">
       <div class="detail-avatar" style="background:${color}">${avatarLetter(k.name)}</div>
       <div class="detail-hinfo">
         <div class="detail-title">${esc(k.name)}</div>
@@ -1165,7 +1478,8 @@ function renderSshDetail(k, i) {
       </div>
     </div>
     <div class="danger-zone">
-      <button class="btn btn-danger btn-sm" data-delete-type="ssh_keys" data-delete-id="${k.id}" data-delete-idx="${i}">${IC.trash} Delete key</button>
+      <button class="btn btn-ghost btn-sm" data-edit-type="ssh_keys" data-edit-id="${esc(k.id)}">${IC.pencil} Edit</button>
+      <button class="btn btn-danger btn-sm" data-delete-type="ssh_keys" data-delete-id="${esc(k.id)}" data-delete-idx="${i}">${IC.trash} Delete key</button>
     </div>`;
 }
 
@@ -1173,7 +1487,7 @@ function renderNoteDetail(n, i) {
   const color = avatarColor(n.title);
   const ck = 'k'+(_dcn++); _dc[ck]=n.body;
   document.getElementById('detail-panel').innerHTML = `
-    <div class="detail-header">
+    <div class="detail-header" style="animation:fadeIn .18s ease">
       <div class="detail-avatar" style="background:${color}">${avatarLetter(n.title)}</div>
       <div class="detail-hinfo">
         <div class="detail-title">${esc(n.title)}</div>
@@ -1198,7 +1512,8 @@ function renderNoteDetail(n, i) {
       </div>
     </div>
     <div class="danger-zone">
-      <button class="btn btn-danger btn-sm" data-delete-type="notes" data-delete-id="${n.id}" data-delete-idx="${i}">${IC.trash} Delete note</button>
+      <button class="btn btn-ghost btn-sm" data-edit-type="notes" data-edit-id="${esc(n.id)}">${IC.pencil} Edit</button>
+      <button class="btn btn-danger btn-sm" data-delete-type="notes" data-delete-id="${esc(n.id)}" data-delete-idx="${i}">${IC.trash} Delete note</button>
     </div>`;
 }
 
@@ -1254,25 +1569,93 @@ const modalDefs = {
       {id:'body',  label:'Note',  type:'textarea', required:true},
     ]
   },
+  ssh: {
+    title: 'Import SSH Key',
+    wide: true,
+    fields: [
+      {id:'name',        label:'Name',        type:'text',     required:true},
+      {id:'public_key',  label:'Public key',  type:'text',     required:true},
+      {id:'private_key', label:'Private key', type:'textarea', required:true, rows:12, mono:true},
+    ]
+  },
 };
 
 function openAddModal() {
+  editingEntry = null;
+  openEntryModal(modalDefs[currentView]?.title, {});
+}
+
+function openEditModal(field, id) {
+  const entry = (vaultJSON?.[field]||[]).find(e => e.id === id);
+  if (!entry) return;
+  editingEntry = { field, id };
+  const baseTitle = (modalDefs[currentView]?.title||'Entry').replace(/^Add /,'').replace(/^Import /,'');
+  openEntryModal(`Edit ${baseTitle}`, entry);
+}
+
+function openEntryModal(title, prefill) {
   const def = modalDefs[currentView];
-  if (!def) { toast('Add SSH keys via the CLI.','err'); return; }
-  document.getElementById('modal-title').textContent = def.title;
+  if (!def) return;
+  document.getElementById('modal').classList.toggle('modal-wide', !!def.wide);
+  document.getElementById('modal-title').textContent = title || def.title;
   document.getElementById('modal-err').textContent   = '';
   document.getElementById('modal-fields').innerHTML  = def.fields.map(f=>`
     <div class="field" style="margin-bottom:12px">
       <label>${f.label}${f.required?'':' <span style="color:var(--text-3);font-weight:400;text-transform:none">(optional)</span>'}</label>
       ${f.type==='textarea'
-        ?`<textarea id="mf-${f.id}" rows="4" style="resize:vertical"></textarea>`
-        :`<input id="mf-${f.id}" type="${f.type}" autocomplete="off"/>`
+        ?`<textarea id="mf-${f.id}" rows="${f.rows||4}" style="resize:vertical${f.mono?';font-family:var(--mono);font-size:12px;line-height:1.6':''}">${esc(prefill[f.id]||'')}</textarea>`
+        : f.id==='password'
+          ?`<div class="pass-wrap">
+              <input id="mf-${f.id}" type="password" autocomplete="off" value="${esc(prefill[f.id]||'')}"/>
+              <button type="button" class="pass-toggle accent" data-action="gen-password" title="Generate a strong password">${IC.refresh}</button>
+            </div>
+            <div class="pw-strength" id="mf-password-strength">${'<div class="pw-strength-seg"></div>'.repeat(4)}</div>
+            <div class="pw-strength-label" id="mf-password-strength-label"></div>`
+          :`<input id="mf-${f.id}" type="${f.type}" autocomplete="off" value="${esc(prefill[f.id]||'')}"/>`
       }
     </div>`).join('');
   document.getElementById('add-modal').classList.add('open');
   document.getElementById(`mf-${def.fields[0].id}`).focus();
+  updatePasswordStrength(document.getElementById('mf-password')?.value || '');
 }
-function closeModal() { document.getElementById('add-modal').classList.remove('open'); }
+
+// Simple heuristic — length + character-class diversity. Not a substitute
+// for the entropy Fob's own generator already guarantees, just feedback
+// for passwords the user typed themselves.
+function scorePassword(pw) {
+  if (!pw) return 0;
+  let classes = 0;
+  if (/[a-z]/.test(pw)) classes++;
+  if (/[A-Z]/.test(pw)) classes++;
+  if (/[0-9]/.test(pw)) classes++;
+  if (/[^a-zA-Z0-9]/.test(pw)) classes++;
+  let score = 1;
+  if (pw.length >= 10) score++;
+  if (pw.length >= 16 && classes >= 3) score++;
+  if (pw.length >= 20 && classes >= 3) score++;
+  return Math.min(4, score);
+}
+function updatePasswordStrength(pw) {
+  const wrap  = document.getElementById('mf-password-strength');
+  const label = document.getElementById('mf-password-strength-label');
+  if (!wrap || !label) return;
+  const score = scorePassword(pw);
+  const segColors = ['var(--danger)','var(--warn)','var(--blue)','var(--ok)'];
+  const labels     = ['Weak','Fair','Good','Strong'];
+  wrap.querySelectorAll('.pw-strength-seg').forEach((seg, i) => {
+    seg.style.background = (score > 0 && i < score) ? segColors[score-1] : '';
+  });
+  label.textContent = score > 0 ? labels[score-1] : '';
+  label.style.color = score > 0 ? segColors[score-1] : '';
+}
+function fillGeneratedPassword() {
+  const el = document.getElementById('mf-password');
+  if (el) { el.value = generatePassword(20); el.type = 'text'; el.focus(); updatePasswordStrength(el.value); }
+}
+function closeModal() {
+  document.getElementById('add-modal').classList.remove('open');
+  editingEntry = null;
+}
 
 async function saveEntry() {
   const def = modalDefs[currentView];
@@ -1290,18 +1673,39 @@ async function saveEntry() {
     try { base32Decode(body.secret); } catch { errEl.textContent='Invalid secret — must be base32.'; return; }
     try { await totp(body.secret); } catch(e) { errEl.textContent=`TOTP error: ${e.message}`; return; }
   }
+  let sshFingerprintValue, sshAlgorithmValue;
+  if (currentView==='ssh') {
+    try { sshFingerprintValue = await sshFingerprint(body.public_key); }
+    catch(e) { errEl.textContent = e.message; return; }
+    sshAlgorithmValue = sshAlgorithm(body.public_key);
+  }
   const btn = document.getElementById('modal-save');
   btn.disabled=true; btn.innerHTML='<span class="spinner"></span> Saving…';
-  const now=nowSecs(), id=uuid();
-  if (currentView==='passwords') {
-    vaultJSON.passwords=(vaultJSON.passwords||[]);
-    vaultJSON.passwords.push({id,created:now,modified:now,tags:[],history:[],...body});
-  } else if (currentView==='totp') {
-    vaultJSON.totp=(vaultJSON.totp||[]);
-    vaultJSON.totp.push({id,created:now,digits:6,period:30,algorithm:'SHA1',...body});
-  } else if (currentView==='notes') {
-    vaultJSON.notes=(vaultJSON.notes||[]);
-    vaultJSON.notes.push({id,created:now,modified:now,...body});
+  const now=nowSecs();
+  const field = currentView==='ssh' ? 'ssh_keys' : currentView==='totp' ? 'totp' : currentView;
+  const editIdx = editingEntry ? (vaultJSON[field]||[]).findIndex(e => e.id === editingEntry.id) : -1;
+
+  if (editIdx !== -1) {
+    // Edit in place — keep id/created, only touch what the form covers.
+    const existing = vaultJSON[field][editIdx];
+    Object.assign(existing, body);
+    if (currentView==='ssh') { existing.fingerprint = sshFingerprintValue; existing.algorithm = sshAlgorithmValue; }
+    if ('modified' in existing) existing.modified = now;
+  } else {
+    const id = uuid();
+    if (currentView==='passwords') {
+      vaultJSON.passwords=(vaultJSON.passwords||[]);
+      vaultJSON.passwords.push({id,created:now,modified:now,...body});
+    } else if (currentView==='totp') {
+      vaultJSON.totp=(vaultJSON.totp||[]);
+      vaultJSON.totp.push({id,created:now,digits:6,period:30,algorithm:'SHA1',...body});
+    } else if (currentView==='notes') {
+      vaultJSON.notes=(vaultJSON.notes||[]);
+      vaultJSON.notes.push({id,created:now,modified:now,...body});
+    } else if (currentView==='ssh') {
+      vaultJSON.ssh_keys=(vaultJSON.ssh_keys||[]);
+      vaultJSON.ssh_keys.push({id,created:now,fingerprint:sshFingerprintValue,algorithm:sshAlgorithmValue,...body});
+    }
   }
   vaultJSON.modified=now;
   await persistVault();
@@ -1314,7 +1718,7 @@ async function saveEntry() {
 // ── Persistence ────────────────────────────────────────────────────
 async function persistVault() {
   try {
-    const newBytes = await vaultSave(vaultFileData, vaultPassphrase, vaultJSON);
+    const newBytes = await vaultSave(vaultFileData, vaultPassphrase, vaultSlot, vaultJSON);
     await writeVaultBack(newBytes);
   } catch(e) { toast(`Save failed: ${e.message}`, 'err'); }
 }

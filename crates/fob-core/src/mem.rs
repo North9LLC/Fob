@@ -10,17 +10,13 @@
 pub fn try_mlock(data: &[u8]) -> bool {
     #[cfg(target_os = "linux")]
     {
-        let ret = unsafe {
-            libc::mlock(data.as_ptr() as *const _, data.len())
-        };
+        let ret = unsafe { libc::mlock(data.as_ptr() as *const _, data.len()) };
         ret == 0
     }
 
     #[cfg(target_os = "macos")]
     {
-        let ret = unsafe {
-            libc::mlock(data.as_ptr() as *const _, data.len())
-        };
+        let ret = unsafe { libc::mlock(data.as_ptr() as *const _, data.len()) };
         ret == 0
     }
 
@@ -43,11 +39,7 @@ pub fn try_munlock(data: &[u8]) {
 pub fn madvise_dontdump(data: &[u8]) {
     #[cfg(target_os = "linux")]
     unsafe {
-        libc::madvise(
-            data.as_ptr() as *mut _,
-            data.len(),
-            libc::MADV_DONTDUMP,
-        );
+        libc::madvise(data.as_ptr() as *mut _, data.len(), libc::MADV_DONTDUMP);
     }
 }
 
