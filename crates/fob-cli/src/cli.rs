@@ -2,14 +2,26 @@ use anyhow::Result;
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 
+use crate::fs_util::atomic_write;
 use crate::tui;
 
 pub const WEB_INDEX_HTML: &str = include_str!("../../../web/index.html");
 
-const RELEASES_API: &str =
-    "https://api.github.com/repos/North9LLC/Fob/releases/latest";
-const INSTALL_URL: &str =
-    "https://raw.githubusercontent.com/North9LLC/Fob/main/install/install.sh";
+const RELEASES_API: &str = "https://api.github.com/repos/North9-Labs/Fob/releases/latest";
+
+/// `install.sh` pinned to a specific release tag rather than the mutable
+/// `main` branch. Used everywhere `fob update` downloads-and-executes the
+/// script (once we already know the exact tag we're updating to) — piping
+/// an arbitrary always-latest branch ref into `sh` means the content
+/// executed can silently change between the moment a user is shown the
+/// command and the moment they run it (or on every future re-run of a
+/// copy-pasted command), with nothing to detect that. Pinning to the tag
+/// doesn't add cryptographic verification, but it does mean "update to
+/// v1.2.3" always runs the exact script that shipped with v1.2.3, not
+/// whatever `main` happens to contain right now.
+fn pinned_install_url(tag: &str) -> String {
+    format!("https://raw.githubusercontent.com/North9-Labs/Fob/{tag}/install/install.sh")
+}
 
 #[derive(Parser)]
 #[command(
@@ -33,9 +45,7 @@ pub enum Commands {
     Setup,
 
     /// Open the TUI for an existing vault.
-    Unlock {
-        device: Option<PathBuf>,
-    },
+    Unlock { device: Option<PathBuf> },
 
     /// Show detected USB drives.
     Devices,
@@ -68,8 +78,19 @@ fn cmd_devices() -> Result<()> {
     }
     println!("Detected USB drives:");
     for (i, d) in devices.iter().enumerate() {
-        let vault = if d.has_fob_vault { " [vault present]" } else { "" };
-        println!("  [{}]  {}  {}  {}{}", i+1, d.name, d.size_display(), d.path.display(), vault);
+        let vault = if d.has_fob_vault {
+            " [vault present]"
+        } else {
+            ""
+        };
+        println!(
+            "  [{}]  {}  {}  {}{}",
+            i + 1,
+            d.name,
+            d.size_display(),
+            d.path.display(),
+            vault
+        );
     }
     Ok(())
 }
@@ -78,10 +99,18 @@ fn cmd_devices() -> Result<()> {
 pub fn write_web_ui(device_path: &std::path::Path) -> Result<()> {
     let dest = device_path.join("index.html");
     #[cfg(target_os = "macos")]
-    { let _ = std::process::Command::new("chflags").args(["nouchg", &dest.to_string_lossy()]).status(); }
-    std::fs::write(&dest, WEB_INDEX_HTML)?;
+    {
+        let _ = std::process::Command::new("chflags")
+            .args(["nouchg", &dest.to_string_lossy()])
+            .status();
+    }
+    atomic_write(&dest, WEB_INDEX_HTML.as_bytes())?;
     #[cfg(target_os = "macos")]
-    { let _ = std::process::Command::new("chflags").args(["uchg", &dest.to_string_lossy()]).status(); }
+    {
+        let _ = std::process::Command::new("chflags")
+            .args(["uchg", &dest.to_string_lossy()])
+            .status();
+    }
     Ok(())
 }
 
@@ -97,9 +126,13 @@ fn cmd_update(check_only: bool) -> Result<()> {
     // Fetch latest release tag via GitHub API using the system curl.
     let out = std::process::Command::new("curl")
         .args([
-            "-fsSL", "--max-time", "10",
-            "-H", "Accept: application/vnd.github+json",
-            "-H", "X-GitHub-Api-Version: 2022-11-28",
+            "-fsSL",
+            "--max-time",
+            "10",
+            "-H",
+            "Accept: application/vnd.github+json",
+            "-H",
+            "X-GitHub-Api-Version: 2022-11-28",
             RELEASES_API,
         ])
         .output();
@@ -131,10 +164,11 @@ fn cmd_update(check_only: bool) -> Result<()> {
     }
 
     println!("update available → {latest}");
+    let install_url = pinned_install_url(&latest);
 
     if check_only {
         println!(
-            "\nRun `fob update` or re-run the install script to upgrade:\n  curl -fsSL {INSTALL_URL} | sh"
+            "\nRun `fob update` or re-run the install script to upgrade:\n  curl -fsSL {install_url} | sh"
         );
         return Ok(());
     }
@@ -148,15 +182,15 @@ fn cmd_update(check_only: bool) -> Result<()> {
         println!("Running install script…");
         let status = std::process::Command::new("sh")
             .arg("-c")
-            .arg(format!("curl -fsSL {INSTALL_URL} | sh -s -- --no-path"))
+            .arg(format!("curl -fsSL {install_url} | sh -s -- --no-path"))
             .status()?;
         if status.success() {
             println!("\n✓ Updated. Restart fob to use {latest}.");
         } else {
-            println!("\nInstall script failed. Try manually:\n  curl -fsSL {INSTALL_URL} | sh");
+            println!("\nInstall script failed. Try manually:\n  curl -fsSL {install_url} | sh");
         }
     } else {
-        println!("\nTo update manually:\n  curl -fsSL {INSTALL_URL} | sh");
+        println!("\nTo update manually:\n  curl -fsSL {install_url} | sh");
     }
 
     Ok(())

@@ -1,9 +1,10 @@
 pub mod aead;
-pub mod browser_vault;
 pub mod error;
 pub mod format;
+pub mod generator;
 pub mod kdf;
 pub mod mem;
+pub mod sshkey;
 pub mod totp;
 pub mod types;
 pub mod vault;

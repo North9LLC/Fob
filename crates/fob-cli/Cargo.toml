@@ -17,17 +17,10 @@ clap = { workspace = true }
 ratatui = { workspace = true }
 crossterm = { workspace = true }
 anyhow = { workspace = true }
-thiserror = { workspace = true }
-serde = { workspace = true }
-uuid = { workspace = true }
+serde_json = { workspace = true }
 zeroize = { workspace = true }
 directories = { workspace = true }
-sysinfo = { workspace = true }
 arboard = { workspace = true }
-getrandom = { workspace = true }
-tokio = { workspace = true }
-blake3 = { workspace = true }
-hex = "0.4"
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"

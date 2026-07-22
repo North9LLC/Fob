@@ -1,10 +1,13 @@
 mod cli;
+mod clipboard;
 mod device;
+mod fs_util;
+mod ssh_agent;
 mod tui;
 
 use anyhow::Result;
-use cli::Cli;
 use clap::Parser;
+use cli::Cli;
 
 fn main() -> Result<()> {
     // Disable core dumps on Linux before doing anything else.

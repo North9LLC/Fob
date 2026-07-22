@@ -38,8 +38,8 @@ pub enum Error {
     Io(#[from] std::io::Error),
 }
 
-impl From<serde_cbor::Error> for Error {
-    fn from(e: serde_cbor::Error) -> Self {
+impl From<serde_json::Error> for Error {
+    fn from(e: serde_json::Error) -> Self {
         Error::Serialize(e.to_string())
     }
 }

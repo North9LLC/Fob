@@ -63,23 +63,17 @@ pub enum SshAlgorithm {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PasswordHistoryItem {
-    pub password: SecretString,
-    pub replaced_at: u64,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PasswordEntry {
     pub id: Uuid,
     pub name: String,
     pub username: String,
     pub password: SecretString,
+    #[serde(default)]
     pub url: Option<String>,
+    #[serde(default)]
     pub notes: Option<String>,
-    pub tags: Vec<String>,
     pub created: u64,
     pub modified: u64,
-    pub history: Vec<PasswordHistoryItem>,
 }
 
 impl PasswordEntry {
@@ -96,10 +90,8 @@ impl PasswordEntry {
             password: SecretString::new(password),
             url: None,
             notes: None,
-            tags: Vec::new(),
             created: now,
             modified: now,
-            history: Vec::new(),
         }
     }
 }
@@ -146,30 +138,27 @@ pub struct SshKeyEntry {
     pub created: u64,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct FileEntry {
-    pub id: Uuid,
-    pub name: String,
-    pub size: u64,
-    pub mime: Option<String>,
-    pub blake3: [u8; 32],
-    pub content: SecretBytes,
-    pub added: u64,
-}
-
-impl FileEntry {
-    pub fn new(name: impl Into<String>, content: Vec<u8>, mime: Option<String>) -> Self {
-        let hash = *blake3::hash(&content).as_bytes();
-        let size = content.len() as u64;
-        Self {
+impl SshKeyEntry {
+    /// Import an existing SSH key pair. `public_key` must be a standard
+    /// `ssh-ed25519 AAAA... comment`-style line — the algorithm and
+    /// fingerprint are derived from it, not asserted by the caller.
+    pub fn new(
+        name: impl Into<String>,
+        public_key: impl Into<String>,
+        private_key: impl Into<String>,
+    ) -> crate::error::Result<Self> {
+        let public_key = public_key.into();
+        let fingerprint = crate::sshkey::fingerprint(&public_key)?;
+        let algorithm = crate::sshkey::algorithm(&public_key);
+        Ok(Self {
             id: Uuid::new_v4(),
             name: name.into(),
-            size,
-            mime,
-            blake3: hash,
-            content: SecretBytes(content),
-            added: crate::vault::unix_now(),
-        }
+            algorithm,
+            public_key,
+            private_key: SecretString::new(private_key),
+            fingerprint,
+            created: crate::vault::unix_now(),
+        })
     }
 }
 
