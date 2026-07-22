@@ -1,5 +1,4 @@
 pub mod agent;
-pub mod clipboard;
-pub mod totp_server;
+pub mod proto;
 
 pub use agent::SshAgent;
