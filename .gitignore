@@ -1,4 +1,5 @@
 /target/
-*.sigil
+*.fob
 *.log
 .env
+__pycache__/

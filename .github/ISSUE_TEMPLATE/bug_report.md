@@ -25,7 +25,7 @@ If applicable, add screenshots or terminal output.
 **Environment (please complete the following information):**
  - OS: [e.g. macOS 14, Ubuntu 22.04]
  - Fob version: [e.g. 0.1.0]
- - Rust version: [e.g. 1.75]
+ - Rust version: [e.g. 1.88]
  - Browser (if using web vault): [e.g. Chrome 120]
 
 **Additional context**
