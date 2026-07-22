@@ -1,0 +1,37 @@
+[package]
+name = "fob-core-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2021"
+
+[workspace]
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+
+[dependencies.fob-core]
+path = ".."
+
+[[bin]]
+name = "parse_header"
+path = "fuzz_targets/parse_header.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "vault_from_bytes"
+path = "fuzz_targets/vault_from_bytes.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "blob_from_json"
+path = "fuzz_targets/blob_from_json.rs"
+test = false
+doc = false
+bench = false
