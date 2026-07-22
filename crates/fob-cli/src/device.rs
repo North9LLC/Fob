@@ -122,18 +122,6 @@ fn parse_device_node(info: &str) -> Option<String> {
         .map(|rest| rest.trim().trim_start_matches("/dev/").to_string())
 }
 
-/// Does this `diskutil info` block describe removable/external media?
-#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
-fn is_removable_diskutil_info(info: &str) -> bool {
-    info.lines().any(|l| {
-        let l = l.to_lowercase();
-        l.contains("removable media") && (l.contains("yes") || l.contains("removable"))
-    }) || info.lines().any(|l| {
-        l.contains("Protocol")
-            && (l.contains("USB") || l.contains("SD") || l.contains("Thunderbolt"))
-    })
-}
-
 /// Does this `diskutil info` block (queried by mount point) describe an
 /// external disk?
 #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
@@ -667,12 +655,6 @@ mod tests {
             parse_device_node(DISKUTIL_INFO_EXTERNAL_USB),
             Some("disk4s1".to_string())
         );
-    }
-
-    #[test]
-    fn detects_removable_usb_media() {
-        assert!(is_removable_diskutil_info(DISKUTIL_INFO_EXTERNAL_USB));
-        assert!(!is_removable_diskutil_info(DISKUTIL_INFO_INTERNAL));
     }
 
     #[test]
