@@ -7,7 +7,7 @@ Thank you for your interest in contributing to Fob.
 Requires Rust 1.88+.
 
 ```sh
-git clone https://github.com/North9-Labs/Fob
+git clone https://github.com/Arcel-Org/Fob
 cd Fob
 cargo test --workspace --all-targets
 cargo clippy --all-targets -- -D warnings
@@ -35,7 +35,7 @@ Do not add I/O to `fob-core`. Do not add cryptographic logic to `fob-cli`.
 
 ## Security
 
-For security vulnerabilities, open a [private advisory](https://github.com/North9-Labs/Fob/security/advisories/new) — not a public issue. Do not disclose vulnerabilities publicly until a fix is available.
+For security vulnerabilities, open a [private advisory](https://github.com/Arcel-Org/Fob/security/advisories/new) — not a public issue. Do not disclose vulnerabilities publicly until a fix is available.
 
 ## License
 

@@ -7,7 +7,7 @@ use crate::tui;
 
 pub const WEB_INDEX_HTML: &str = include_str!("../../../web/index.html");
 
-const RELEASES_API: &str = "https://api.github.com/repos/North9-Labs/Fob/releases/latest";
+const RELEASES_API: &str = "https://api.github.com/repos/Arcel-Org/Fob/releases/latest";
 
 /// `install.sh` pinned to a specific release tag rather than the mutable
 /// `main` branch. Used everywhere `fob update` downloads-and-executes the
@@ -20,7 +20,7 @@ const RELEASES_API: &str = "https://api.github.com/repos/North9-Labs/Fob/release
 /// v1.2.3" always runs the exact script that shipped with v1.2.3, not
 /// whatever `main` happens to contain right now.
 fn pinned_install_url(tag: &str) -> String {
-    format!("https://raw.githubusercontent.com/North9-Labs/Fob/{tag}/install/install.sh")
+    format!("https://raw.githubusercontent.com/Arcel-Org/Fob/{tag}/install/install.sh")
 }
 
 #[derive(Parser)]

@@ -6,7 +6,7 @@
 
 An encrypted vault that lives on a USB drive — passwords, TOTP codes, SSH keys, and secure notes, protected by PBKDF2-HMAC-SHA256 and AES-256-GCM. Nothing installed on your computer.
 
-[![CI](https://github.com/North9-Labs/Fob/actions/workflows/ci.yml/badge.svg)](https://github.com/North9-Labs/Fob/actions/workflows/ci.yml)
+[![CI](https://github.com/Arcel-Org/Fob/actions/workflows/ci.yml/badge.svg)](https://github.com/Arcel-Org/Fob/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg)](LICENSE-MIT)
 [![Rust 1.88+](https://img.shields.io/badge/rust-1.88+-orange.svg)](#building-from-source)
 
@@ -75,7 +75,7 @@ All cryptographic operations live in `fob-core`, which has no filesystem or netw
 ## Installation
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/North9-Labs/Fob/main/install/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/Arcel-Org/Fob/main/install/install.sh | sh
 ```
 
 Installs `fob` and `fob-agent` to `~/.fob/bin` and adds that to your PATH.
@@ -102,7 +102,7 @@ No release built yet, or want to build it yourself? See below.
 Requires Rust 1.88+.
 
 ```sh
-git clone https://github.com/North9-Labs/Fob.git
+git clone https://github.com/Arcel-Org/Fob.git
 cd Fob
 cargo build --release -p fob-cli -p fob-agent
 ```
@@ -151,7 +151,7 @@ fob/
 
 ## Contributing
 
-Issues and pull requests welcome. For security vulnerabilities, please open a [private advisory](https://github.com/North9-Labs/Fob/security/advisories/new) rather than a public issue.
+Issues and pull requests welcome. For security vulnerabilities, please open a [private advisory](https://github.com/Arcel-Org/Fob/security/advisories/new) rather than a public issue.
 
 ---
 

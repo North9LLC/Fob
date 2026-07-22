@@ -1,7 +1,7 @@
 #!/usr/bin/env sh
 # Fob — installer
 # ──────────────────────────────────────────────────────────────────────────────
-# curl -fsSL https://raw.githubusercontent.com/North9-Labs/Fob/main/install/install.sh | sh
+# curl -fsSL https://raw.githubusercontent.com/Arcel-Org/Fob/main/install/install.sh | sh
 #
 # Downloads the fob + fob-agent binaries, verifies them, and runs the
 # interactive TUI setup wizard. Falls back to building from source if no
@@ -17,8 +17,8 @@
 set -eu
 
 FOB_INSTALL_DIR="${HOME}/.fob/bin"
-FOB_RELEASES_API="https://api.github.com/repos/North9-Labs/Fob/releases/latest"
-FOB_BASE_URL="https://github.com/North9-Labs/Fob/releases/download"
+FOB_RELEASES_API="https://api.github.com/repos/Arcel-Org/Fob/releases/latest"
+FOB_BASE_URL="https://github.com/Arcel-Org/Fob/releases/download"
 
 VERSION=""
 MODIFY_PATH=1
@@ -149,7 +149,7 @@ elif [ -z "$VERSION" ]; then
   if [ -z "$VERSION" ]; then
     die "No release found and not in a source repo.
   Clone the repo and re-run:
-    git clone https://github.com/North9-Labs/Fob.git
+    git clone https://github.com/Arcel-Org/Fob.git
     cd Fob && sh install/install.sh"
   fi
   say "Version: $VERSION"
@@ -210,7 +210,7 @@ else
       say "Verifying cosign signature..."
       if cosign verify-blob \
           --bundle "$BUNDLE_FILE" \
-          --certificate-identity-regexp "^https://github\.com/North9-Labs/Fob/" \
+          --certificate-identity-regexp "^https://github\.com/Arcel-Org/Fob/" \
           --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
           "$ARTIFACT_FILE" >/dev/null 2>&1; then
         say "Signature OK."

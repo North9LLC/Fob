@@ -14,7 +14,7 @@ Fob is a security-focused project. We take vulnerabilities seriously and appreci
 
 Instead, report them privately via GitHub Security Advisories:
 
-1. Go to [Security Advisories](https://github.com/North9-Labs/Fob/security/advisories/new)
+1. Go to [Security Advisories](https://github.com/Arcel-Org/Fob/security/advisories/new)
 2. Click "New draft security advisory"
 3. Fill in the details and submit
 
