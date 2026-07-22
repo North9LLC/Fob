@@ -160,7 +160,7 @@ fn render_device_picker(frame: &mut Frame, state: &AppState) {
             ListItem::new(vec![
                 Line::from(vec![
                     prefix.clone(),
-                    Span::styled(format!("{:<28}", &dev.name), name_style),
+                    Span::styled(format!("{:<28}", dev.name), name_style),
                     Span::styled(format!("{:>8}", dev.size_display()), muted()),
                     vault_tag,
                 ]),

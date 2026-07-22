@@ -36,6 +36,7 @@ pub fn try_munlock(data: &[u8]) {
 
 /// Advise the kernel not to include this memory in core dumps.
 /// Linux only; no-op on other platforms.
+#[cfg_attr(not(target_os = "linux"), allow(unused_variables))]
 pub fn madvise_dontdump(data: &[u8]) {
     #[cfg(target_os = "linux")]
     unsafe {
